@@ -15,6 +15,8 @@ import type { z } from "zod";
 import { CandleChart } from "./templates/CandleChart/CandleChart";
 import { EndCard } from "./templates/EndCard/EndCard";
 import { endCardDefaults, endCardSchema, endCardSeconds } from "./templates/EndCard/schema";
+import { TextCard } from "./templates/TextCard/TextCard";
+import { textCardDefaults, textCardSchema, textCardSeconds } from "./templates/TextCard/schema";
 import { PriceZone } from "./templates/PriceZone/PriceZone";
 import { priceZoneDefaults, priceZoneSchema, priceZoneSeconds } from "./templates/PriceZone/schema";
 import { LineChart } from "./templates/LineChart/LineChart";
@@ -182,8 +184,23 @@ const priceZone = defineTemplate({
   durationInFrames: (props, fps) => Math.round(priceZoneSeconds(props.speed) * fps),
 });
 
+const textCard = defineTemplate({
+  id: "TextCard",
+  title: "Text Card",
+  blurb: "Any text, five ways in. Bubble, card, gradient or bare over footage.",
+  tags: ["text", "title", "quote"],
+  component: TextCard,
+  schema: textCardSchema,
+  defaults: textCardDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) =>
+    Math.round(textCardSeconds(props.text, props.animation, props.holdSeconds, props.speed) * fps),
+});
+
 export const registry: AnyTemplateEntry[] = [
   hookTitle,
+  textCard,
   lowerThird,
   endCard,
   lineChart,
