@@ -1,17 +1,22 @@
 {
   "name": "app",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,ui -c cyan,magenta \"npm:dev:server\" \"npm:dev:ui\"",
     "dev:ui": "vite",
     "dev:server": "node --env-file-if-exists=../.env server/index.mjs",
-    "build": "vite build"
+    "build": "vite build",
+    "dev:electron": "electron .",
+    "electron": "concurrently -n server,ui,shell -c cyan,magenta,green \"npm:dev:server\" \"npm:dev:ui\" \"npm:dev:electron\"",
+    "pack": "npm run build && electron-builder --dir",
+    "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "@remotion/player": "4.0.499",
     "@remotion/zod-types": "4.0.499",
+    "electron-updater": "^6.8.9",
     "express": "4.21.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -25,7 +30,61 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.0",
     "concurrently": "9.1.2",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "typescript": "5.9.3",
     "vite": "7.1.5"
+  },
+  "main": "electron/main.mjs",
+  "description": "Motion graphics template app",
+  "build": {
+    "appId": "com.hoteldebit.motiongraphics",
+    "productName": "Motion Graphics",
+    "directories": {
+      "output": "../release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../engine",
+        "to": "app.asar.unpacked/engine",
+        "filter": [
+          "**/*",
+          "!out/**",
+          "!node_modules/.cache/**"
+        ]
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Motion Graphics"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Navidbyti",
+        "repo": "motion-graphics-system"
+      }
+    ]
   }
 }

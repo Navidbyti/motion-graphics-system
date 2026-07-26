@@ -8,6 +8,9 @@ const ENGINE_SRC = path.resolve(here, "..", "engine", "src");
 
 export default defineConfig({
   plugins: [react()],
+  // Relative asset paths: the packaged app loads index.html over file://,
+  // where absolute "/assets/..." URLs resolve to the filesystem root and 404.
+  base: "./",
   /*
    * Serve the ENGINE's public folder, not one of our own.
    *

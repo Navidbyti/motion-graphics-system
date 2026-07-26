@@ -19,7 +19,13 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ENGINE_ROOT = path.resolve(here, "..");
+
+/**
+ * In a packaged app the engine is unpacked out of the asar archive (Remotion's
+ * bundler reads these files from disk, which it cannot do inside an archive),
+ * so its location differs from the module's own path. Electron sets this.
+ */
+const ENGINE_ROOT = process.env.MG_ENGINE_ROOT ?? path.resolve(here, "..");
 
 /** Kept in sync with BROWSER_CANDIDATES in remotion.config.ts. */
 const BROWSER_CANDIDATES = [

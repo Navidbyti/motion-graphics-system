@@ -23,6 +23,89 @@ type Health = {
   ai: { enabled: boolean; model: string };
 };
 
+/** Bridge exposed by electron/preload.cjs. Absent when running in a browser. */
+type DesktopBridge = {
+  isDesktop: true;
+  getVersion: () => Promise<string>;
+  checkForUpdates: () => Promise<{ state: string; message?: string }>;
+  installUpdate: () => Promise<void>;
+  openFolder: (folder: string) => Promise<string>;
+  onUpdateStatus: (cb: (s: UpdateStatus) => void) => () => void;
+};
+
+type UpdateStatus = {
+  state: "checking" | "downloading" | "ready" | "current" | "error" | "dev";
+  version?: string;
+  percent?: number;
+  message?: string;
+};
+
+const desktop: DesktopBridge | undefined = (
+  window as unknown as { desktop?: DesktopBridge }
+).desktop;
+
+/**
+ * Sync = check for a new build of the app, which is how new templates arrive.
+ *
+ * Templates are compiled into the app rather than fetched, so "get the latest
+ * templates" and "update the app" are the same operation. The button says Sync
+ * because that's what it means to the editor — he doesn't care that a new
+ * lower-third arrives as an installer.
+ */
+const SyncButton: React.FC = () => {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [version, setVersion] = useState<string>("");
+
+  useEffect(() => {
+    if (!desktop) return;
+    desktop.getVersion().then(setVersion);
+    return desktop.onUpdateStatus(setStatus);
+  }, []);
+
+  if (!desktop) return null;
+
+  const label = () => {
+    switch (status?.state) {
+      case "checking":
+        return "Checking…";
+      case "downloading":
+        return status.percent ? `Downloading ${status.percent}%` : "Downloading…";
+      case "ready":
+        return `Restart to update`;
+      case "current":
+        return "Up to date";
+      case "error":
+        return "Sync failed";
+      default:
+        return "Sync";
+    }
+  };
+
+  const onClick = () => {
+    if (status?.state === "ready") return void desktop.installUpdate();
+    setStatus({ state: "checking" });
+    desktop.checkForUpdates().then((r) => {
+      if (r.state === "error" || r.state === "dev") {
+        setStatus({ state: r.state as UpdateStatus["state"], message: r.message });
+      }
+    });
+  };
+
+  return (
+    <div className="sync">
+      <button
+        className={status?.state === "ready" ? "active" : ""}
+        onClick={onClick}
+        disabled={status?.state === "checking" || status?.state === "downloading"}
+        title={status?.message ?? "Check for new templates"}
+      >
+        {label()}
+      </button>
+      {version ? <span className="muted small">v{version}</span> : null}
+    </div>
+  );
+};
+
 /**
  * The prompt is a shortcut, never the only way in. If the key is missing or the
  * model fails, the editor still has the full form — so this degrades to
@@ -114,6 +197,7 @@ export const App: React.FC = () => {
         {health && !health.ok ? (
           <span className="banner-error">{health.problem}</span>
         ) : null}
+        <SyncButton />
       </header>
 
       {template ? (
