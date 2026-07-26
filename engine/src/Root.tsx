@@ -4,6 +4,7 @@ import "./index.css";
 import "./brand/loadFonts";
 import { CalculateMetadataFunction, Composition } from "remotion";
 import { formats } from "./brand/tokens";
+import { APP_ICON_SIZE, AppIcon } from "./AppIcon";
 import { compositionId, registry } from "./registry";
 import { ALPHA_PROOF_DURATION, AlphaProof } from "./templates/AlphaProof/AlphaProof";
 
@@ -68,6 +69,16 @@ export const RemotionRoot: React.FC = () => {
           );
         }),
       )}
+
+      {/* Render target for the app icon. Not a template — never in the Library. */}
+      <Composition
+        id="AppIcon"
+        component={AppIcon}
+        durationInFrames={1}
+        fps={FPS}
+        width={APP_ICON_SIZE}
+        height={APP_ICON_SIZE}
+      />
 
       {/* Phase 1 diagnostic. Kept so the alpha path stays regression-testable. */}
       <Composition

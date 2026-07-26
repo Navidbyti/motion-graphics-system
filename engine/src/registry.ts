@@ -13,6 +13,8 @@
 
 import type { z } from "zod";
 import { CandleChart } from "./templates/CandleChart/CandleChart";
+import { EndCard } from "./templates/EndCard/EndCard";
+import { endCardDefaults, endCardSchema, endCardSeconds } from "./templates/EndCard/schema";
 import { HookTitle } from "./templates/HookTitle/HookTitle";
 import {
   hookTitleDefaults,
@@ -137,6 +139,19 @@ const lowerThird = defineTemplate({
     Math.round(lowerThirdSeconds(props.seconds, props.speed) * fps),
 });
 
-export const registry: AnyTemplateEntry[] = [hookTitle, lowerThird, candleChart];
+const endCard = defineTemplate({
+  id: "EndCard",
+  title: "End Card",
+  blurb: "Closing frame with a call to action. Sizing and RTL aware.",
+  tags: ["closing", "cta", "text"],
+  component: EndCard,
+  schema: endCardSchema,
+  defaults: endCardDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(endCardSeconds(props.speed) * fps),
+});
+
+export const registry: AnyTemplateEntry[] = [hookTitle, lowerThird, endCard, candleChart];
 
 export const findTemplate = (id: string) => registry.find((t) => t.id === id);

@@ -1,0 +1,74 @@
+<!--
+  APP ICON — source of truth. Rendered to PNG by the AppIcon composition in the
+  engine, which electron-builder then converts to .ico.
+
+  Design notes:
+  - A keyframe diamond, not a play triangle. A play button says "player"; a
+    keyframe says "motion graphics" to anyone who has opened an NLE.
+  - Three trails with rising opacity read as movement without animation, and
+    survive being scaled to 16px in a taskbar.
+  - Violet and cyan deliberately: the app serves all three house brands plus
+    custom themes, so the icon must not look like it belongs to any of them.
+    This is distinct from Cash for Chat's red, Billionaire Signal's gold and
+    Free Hotel Card's teal.
+  - Big shapes, high contrast, no thin strokes. Everything here still reads at
+    32px, which is where an app icon actually lives.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3B1D77" />
+      <stop offset="55%" stop-color="#241150" />
+      <stop offset="100%" stop-color="#170B36" />
+    </linearGradient>
+
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7DE9FF" />
+      <stop offset="55%" stop-color="#A78BFA" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="url(#bg)" />
+  <rect width="512" height="512" rx="116" fill="url(#sheen)" />
+  <rect
+    x="2" y="2" width="508" height="508" rx="114"
+    fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="4"
+  />
+
+  <!-- Motion trails: shortest and faintest furthest from the keyframe. -->
+  <g fill="#7DE9FF">
+    <rect x="88"  y="243" width="34" height="26" rx="13" opacity="0.28" />
+    <rect x="140" y="243" width="46" height="26" rx="13" opacity="0.50" />
+    <rect x="204" y="243" width="58" height="26" rx="13" opacity="0.78" />
+  </g>
+
+  <!-- The keyframe itself. -->
+  <g filter="url(#glow)">
+    <rect
+      x="266" y="176" width="160" height="160" rx="30"
+      fill="url(#mark)"
+      transform="rotate(45 346 256)"
+    />
+  </g>
+
+  <!-- Inner cut, so the diamond reads as a keyframe rather than a solid blob. -->
+  <rect
+    x="311" y="221" width="70" height="70" rx="14"
+    fill="#1B0E3F"
+    transform="rotate(45 346 256)"
+  />
+</svg>

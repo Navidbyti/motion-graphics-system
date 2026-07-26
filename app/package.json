@@ -12,7 +12,8 @@
     "electron": "concurrently -n server,ui,shell -c cyan,magenta,green \"npm:dev:server\" \"npm:dev:ui\" \"npm:dev:electron\"",
     "pack": "npm run build && npm run stage:engine && electron-builder --dir",
     "release": "npm run build && npm run stage:engine && electron-builder --publish always",
-    "stage:engine": "node scripts/stage-engine.mjs"
+    "stage:engine": "node scripts/stage-engine.mjs",
+    "icon": "cd ../engine && remotion still src/index.ts AppIcon ../app/build-resources/icon.png"
   },
   "dependencies": {
     "@remotion/player": "4.0.499",
@@ -67,7 +68,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build-resources/icon.png"
     },
     "nsis": {
       "oneClick": false,
