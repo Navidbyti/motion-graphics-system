@@ -17,6 +17,7 @@
 import { zColor } from "@remotion/zod-types";
 import { z } from "zod";
 import { BRAND_IDS, brands } from "../brand/brands";
+import { themeSchema } from "../brand/theme";
 
 /* ------------------------------------------------------------------ *
  * Text
@@ -96,13 +97,42 @@ export const showLogo = (describe = "Show the logo") => toggle(describe);
  */
 export const brand = () =>
   z
-    .enum(BRAND_IDS as [string, ...string[]])
+    .enum([...BRAND_IDS, "custom"] as unknown as [string, ...string[]])
     .describe(
       "Which brand this video is for: " +
         Object.values(brands)
           .map((b) => b.name)
-          .join(", "),
+          .join(", ") +
+        ", or Custom theme",
     );
+
+/**
+ * The custom theme, supplied by the app from its Settings screen rather than
+ * edited per video. Marked `__app-managed` so the props form skips it — the
+ * same marker convention `zColor()` uses for its own field type.
+ */
+export const theme = () => themeSchema.optional().describe("__app-managed");
+
+/**
+ * Overall size of the graphic within the frame.
+ *
+ * Multiplies every dimension at once via `useLayout`, so "make the chart
+ * smaller" is one slider rather than a bespoke control per template.
+ */
+export const scale = () =>
+  z
+    .number()
+    .min(0.5)
+    .max(1.5)
+    .describe("Size of the graphic. 1 is normal, 0.5 is half size");
+
+/**
+ * Text direction. Persian and Arabic read right to left, and the alignment has
+ * to flip with the text — templates using `useLayout`'s start/end helpers get
+ * this for free.
+ */
+export const direction = () =>
+  z.enum(["ltr", "rtl"]).describe("Text direction. Use rtl for Persian or Arabic");
 
 /**
  * Fields every template carries, so the bottom of the props panel is always
@@ -111,4 +141,23 @@ export const brand = () =>
  *   export const mySchema = withCommon({ headline: headline(), ... })
  */
 export const withCommon = <T extends z.ZodRawShape>(shape: T) =>
-  z.object({ ...shape, brand: brand(), speed: speed() });
+  z.object({
+    ...shape,
+    brand: brand(),
+    theme: theme(),
+    scale: scale(),
+    direction: direction(),
+    speed: speed(),
+  });
+
+/**
+ * The original common set, for the three templates written before custom
+ * themes, sizing and RTL existed.
+ *
+ * Keeping them on this deliberately means they aren't silently changed: adding
+ * `direction` to a template that doesn't honour it would put an RTL toggle in
+ * the panel that does nothing, which is worse than not offering it. They can be
+ * migrated one at a time when each is actually updated to support it.
+ */
+export const withCommonLegacy = <T extends z.ZodRawShape>(shape: T) =>
+  z.object({ ...shape, brand: brand(), theme: theme(), speed: speed() });

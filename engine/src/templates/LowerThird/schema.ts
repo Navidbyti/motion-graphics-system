@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { headline, label, toggle, withCommon } from "../fields";
+import { headline, label, toggle, withCommonLegacy } from "../fields";
 
-export const lowerThirdSchema = withCommon({
+export const lowerThirdSchema = withCommonLegacy({
   name: headline("Person's name"),
 
   role: label("Their role or title"),

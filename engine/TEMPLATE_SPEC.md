@@ -130,6 +130,38 @@ system rather than a pile of separate videos.
   settings belong to the **preset** (`OVERLAY_RENDER_SETTINGS` in `Root.tsx`),
   read by both the npm scripts and the app. *(Caught in Phase 2.)*
 
+## 6b. Size and direction (templates using `withCommon`)
+
+`useLayout()` in `src/layout.ts` is the single source for sizing and direction.
+Never compute `px()` inline.
+
+```ts
+const { px, isVertical, isRTL, start, textStart } = useLayout({ scale, direction });
+```
+
+- **MUST** take `px` from `useLayout` rather than writing the scaling expression.
+  The rule (scale by the shorter side, times the editor's `scale`) is subtle and
+  has already been got wrong once.
+- **MUST** work at any aspect ratio, not just the three presets. The editor can
+  set a custom output size. Use `isExtreme` to simplify a layout past ~2.4:1
+  rather than letting it break.
+- **MUST NOT** hardcode `left` / `right` / `flex-start` for content that holds
+  text. Use `start` / `end` / `textStart` so the layout mirrors under RTL.
+- **MUST** set `direction: dir` on any container whose children are laid out
+  individually — **especially one that splits text into per-word elements.**
+  Flex runs left-to-right regardless of the text inside it, so a word-staggered
+  headline renders a Persian sentence in reverse word order. This is the single
+  most common way RTL support looks like it works and doesn't. *(Confirmed by
+  rendering HookTitle with Persian copy: the words came out backwards.)*
+- **SHOULD** use Vazirmatn as the display and body face for Persian or Arabic.
+  Inter and Poppins have no coverage for the script and fall back to whatever
+  the OS supplies, which differs per machine.
+
+The three templates written before this existed (`CandleChart`, `HookTitle`,
+`LowerThird`) stay on `withCommonLegacy` — they support custom themes but not
+sizing or RTL. That's deliberate: offering an RTL toggle that does nothing is
+worse than not offering it. Migrate one when it's actually updated to honour it.
+
 ## 7. Brand
 
 There are **three brands** — Cash for Chat, Billionaire Signal, Free Hotel Card —

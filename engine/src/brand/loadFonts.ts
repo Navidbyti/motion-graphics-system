@@ -21,7 +21,7 @@
 
 import { continueRender, delayRender, staticFile } from "remotion";
 
-type Face = { family: string; weight: string; file: string };
+type Face = { family: string; weight: string; file: string; range?: string };
 
 /**
  * Inter ships as a single variable font — Google serves the identical file for
@@ -35,6 +35,28 @@ const FACES: Face[] = [
   { family: "Poppins", weight: "600", file: "fonts/poppins-600.woff2" },
   { family: "Poppins", weight: "700", file: "fonts/poppins-700.woff2" },
   { family: "Poppins", weight: "900", file: "fonts/poppins-900.woff2" },
+
+  /**
+   * Vazirmatn covers Persian/Arabic script, which Inter and Poppins do not —
+   * they render Persian as tofu boxes or fall back to whatever the OS supplies,
+   * which differs between machines and breaks the whole point of self-hosting.
+   *
+   * Two subsets, one variable file each. The Arabic subset is declared with an
+   * explicit unicode-range so Latin text in a mixed string still renders in the
+   * Latin cut rather than Vazirmatn's Latin, which has different metrics.
+   */
+  {
+    family: "Vazirmatn",
+    weight: "100 900",
+    file: "fonts/vazirmatn-latin.woff2",
+  },
+  {
+    family: "Vazirmatn",
+    weight: "100 900",
+    file: "fonts/vazirmatn-arabic.woff2",
+    range:
+      "U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E, U+2010-2011, U+204F, U+2E41",
+  },
 ];
 
 const handle = delayRender("Loading brand fonts");
@@ -43,9 +65,10 @@ if (typeof document === "undefined" || typeof FontFace === "undefined") {
   continueRender(handle);
 } else {
   Promise.all(
-    FACES.map(async ({ family, weight, file }) => {
+    FACES.map(async ({ family, weight, file, range }) => {
       const face = new FontFace(family, `url(${staticFile(file)}) format('woff2')`, {
         weight,
+        ...(range ? { unicodeRange: range } : {}),
       });
       document.fonts.add(await face.load());
     }),

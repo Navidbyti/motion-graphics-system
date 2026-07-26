@@ -5,7 +5,7 @@ import {
   label,
   subline,
   toggle,
-  withCommon,
+  withCommonLegacy,
 } from "../fields";
 
 /**
@@ -44,7 +44,7 @@ export const candleSchema = z
  * is genuinely unique to this template. That keeps labels, limits and control
  * types identical across the library.
  */
-export const candleChartSchema = withCommon({
+export const candleChartSchema = withCommonLegacy({
   ticker: label("Market or ticker name shown at the top, e.g. NASDAQ"),
 
   subtitle: subline("Small line under the ticker, e.g. the timeframe or date"),

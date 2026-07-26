@@ -105,7 +105,14 @@ export const fieldEntries = (
   const shape = schema?._def?.shape?.();
   if (!shape) return [];
 
-  return Object.entries(shape).map(([key, field]) => {
+  return Object.entries(shape)
+    .filter(([, field]) => {
+      // Fields the app supplies rather than the editor edits — the custom theme
+      // comes from Settings, not from the props panel. Same marker convention
+      // zColor() uses to flag its own field type.
+      return (field as any)?.description !== "__app-managed";
+    })
+    .map(([key, field]) => {
     const raw = (field as any)?.description;
     const description = raw === "__remotion-color" ? undefined : raw;
     return {

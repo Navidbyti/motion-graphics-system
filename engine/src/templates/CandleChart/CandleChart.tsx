@@ -25,13 +25,14 @@ import {
   type,
   weight,
 } from "../../brand/tokens";
-import { getBrand } from "../../brand/brands";
+import { resolveTheme } from "../../brand/theme";
 import { EASE, SPRING, fadeUp, scaleIn, sec, tabular } from "../../motion";
 import { spring } from "remotion";
 import { TIMING, type CandleChartProps } from "./schema";
 
 export const CandleChart: React.FC<CandleChartProps> = ({
   brand,
+  theme,
   ticker,
   subtitle,
   candles,
@@ -63,7 +64,7 @@ export const CandleChart: React.FC<CandleChartProps> = ({
    * selected brand rather than from static tokens, so one template renders
    * correctly as Cash for Chat, Billionaire Signal or Free Hotel Card.
    */
-  const b = getBrand(brand);
+  const b = resolveTheme(brand, theme);
   const { palette, font } = b;
   const bullColor = palette.positive;
   const bearColor = palette.negative;

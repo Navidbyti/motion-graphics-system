@@ -15,7 +15,7 @@
  */
 
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { getBrand } from "../../brand/brands";
+import { resolveTheme } from "../../brand/theme";
 import { radius, safe, space, type, weight } from "../../brand/tokens";
 import { EASE, exit, fadeUp, sec, wipeUp } from "../../motion";
 import { TIMING, type HookTitleProps } from "./schema";
@@ -25,6 +25,7 @@ const normalise = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/gi, "");
 
 export const HookTitle: React.FC<HookTitleProps> = ({
   brand,
+  theme,
   eyebrow,
   text,
   subline,
@@ -38,7 +39,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
   const isVertical = height > width;
   const px = (n: number) => (n * Math.min(width, height)) / 1080;
 
-  const b = getBrand(brand);
+  const b = resolveTheme(brand, theme);
   const { palette, font } = b;
 
   const pace = speed * b.motion.pace;

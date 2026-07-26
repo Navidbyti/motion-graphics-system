@@ -12,13 +12,14 @@
  */
 
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { getBrand } from "../../brand/brands";
+import { resolveTheme } from "../../brand/theme";
 import { radius, safe, shadow, space, type, weight } from "../../brand/tokens";
 import { EASE, enter, sec } from "../../motion";
 import { TIMING, type LowerThirdProps } from "./schema";
 
 export const LowerThird: React.FC<LowerThirdProps> = ({
   brand,
+  theme,
   name,
   role,
   handle,
@@ -32,7 +33,7 @@ export const LowerThird: React.FC<LowerThirdProps> = ({
   const isVertical = height > width;
   const px = (n: number) => (n * Math.min(width, height)) / 1080;
 
-  const b = getBrand(brand);
+  const b = resolveTheme(brand, theme);
   const { palette, font } = b;
 
   const pace = speed * b.motion.pace;

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { headline, label, subline, toggle, withCommon } from "../fields";
+import { headline, label, subline, toggle, withCommonLegacy } from "../fields";
 
-export const hookTitleSchema = withCommon({
+export const hookTitleSchema = withCommonLegacy({
   eyebrow: label("Small line above the headline, e.g. a category or teaser"),
 
   text: headline("The hook — the first thing the viewer reads"),
