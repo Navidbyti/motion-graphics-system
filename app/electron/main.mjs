@@ -47,7 +47,7 @@ const loadEnvironment = () => {
       }
     }
   }
-  console.log("[env] no .env found — AI features will be disabled");
+  console.log("[env] no .env found — using defaults");
   return null;
 };
 

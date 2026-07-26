@@ -67,10 +67,20 @@ const cleanEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !key.toLowerCase().startsWith("npm_")),
 );
 
+/**
+ * `shell: true` on Windows is required, not cosmetic.
+ *
+ * Node blocks spawning .cmd/.bat files directly (a 2024 command-injection fix),
+ * so `execFileSync("npm.cmd", …)` fails with EINVAL. Running the same command
+ * by hand works, which makes this look like a workspace problem rather than a
+ * spawn problem.
+ */
+const isWindows = process.platform === "win32";
+
 execFileSync(
-  process.platform === "win32" ? "npm.cmd" : "npm",
+  isWindows ? "npm.cmd" : "npm",
   ["install", "--omit=dev", "--no-audit", "--no-fund", "--install-strategy=nested"],
-  { cwd: STAGE, stdio: "inherit", env: cleanEnv },
+  { cwd: STAGE, stdio: "inherit", env: cleanEnv, shell: isWindows },
 );
 
 console.log(`[stage] done → ${STAGE}`);

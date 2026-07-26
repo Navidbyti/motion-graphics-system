@@ -21,6 +21,21 @@ type Health = {
   problem: string | null;
 };
 
+/**
+ * Where the render server lives.
+ *
+ * In dev the UI is served by Vite, which proxies /api to the server. In the
+ * packaged app the UI loads from a file:// URL, where a relative "/api/…"
+ * resolves against the filesystem root and every request fails. The Library
+ * still renders — templates are bundled — so the app looks completely fine
+ * right up until someone tries to export.
+ */
+const API_BASE = "http://localhost:3131";
+const isDesktopApp = Boolean(
+  (window as unknown as { desktop?: unknown }).desktop,
+);
+const api = (path: string) => (isDesktopApp ? API_BASE + path : path);
+
 /** Bridge exposed by electron/preload.cjs. Absent when running in a browser. */
 type DesktopBridge = {
   isDesktop: true;
@@ -119,7 +134,7 @@ export const App: React.FC = () => {
   const [health, setHealth] = useState<Health | null>(null);
 
   useEffect(() => {
-    fetch("/api/health")
+    fetch(api("/api/health"))
       .then((r) => r.json())
       .then(setHealth)
       .catch(() => setHealth(null));
@@ -229,7 +244,7 @@ const EditScreen: React.FC<{
   useEffect(() => {
     if (!job || job.status !== "rendering") return;
     const timer = setInterval(async () => {
-      const res = await fetch(`/api/job/${job.id}`);
+      const res = await fetch(api(`/api/job/${job.id}`));
       if (!res.ok) return;
       const next = await res.json();
       setJob((j) => (j ? { ...j, ...next } : j));
@@ -238,7 +253,7 @@ const EditScreen: React.FC<{
   }, [job]);
 
   const exportNow = async () => {
-    const res = await fetch("/api/export", {
+    const res = await fetch(api("/api/export"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
