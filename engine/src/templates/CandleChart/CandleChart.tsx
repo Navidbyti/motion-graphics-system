@@ -467,8 +467,36 @@ export const CandleChart: React.FC<CandleChartProps> = ({
           })}
           </div>
 
-          {/* Axis gutter — reserved space so the label never covers a candle. */}
-          <div style={{ width: px(170), flexShrink: 0 }} />
+          {/*
+            Axis gutter — reserved so the closing label never covers a candle,
+            and, when gridlines are on, where each line's price is printed.
+            A gridline without a number is decoration; with one it's a scale.
+          */}
+          <div style={{ width: px(170), flexShrink: 0, position: "relative" }}>
+            {showGrid
+              ? [0, 25, 50, 75, 100].map((g) => (
+                  <div
+                    key={g}
+                    style={{
+                      position: "absolute",
+                      left: px(space.sm),
+                      bottom: `${g}%`,
+                      transform: "translateY(50%)",
+                      fontFamily: font.numeric,
+                      fontWeight: weight.medium,
+                      fontSize: px(type.caption * (isVertical ? 0.78 : 0.9)),
+                      color: palette.textSecondary,
+                      whiteSpace: "nowrap",
+                      opacity: gridIn * 0.9,
+                      ...tabular,
+                    }}
+                  >
+                    {currency}
+                    {(lo + ((hi - lo) * g) / 100).toFixed(decimals)}
+                  </div>
+                ))
+              : null}
+          </div>
 
           {highlightLast ? <ClosingPriceLabel /> : null}
         </div>

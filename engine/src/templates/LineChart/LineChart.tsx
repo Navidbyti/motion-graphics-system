@@ -131,6 +131,26 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   const gutter = px(150);
 
+  /** Values for the horizontal gridlines, so each one is readable. */
+  const gridLevels = [0, 25, 50, 75, 100].map((p) => ({
+    pct: p,
+    value: lo + ((hi - lo) * p) / 100,
+  }));
+
+  /**
+   * Axis labels have to thin out, not shrink indefinitely.
+   *
+   * Every point got a label regardless of format, so fourteen months in a
+   * vertical frame were crammed into a third of the width and overlapped into
+   * mush. Showing every Nth label keeps the ones that remain legible — which is
+   * the point of an axis. The type is also a notch smaller on the narrow
+   * formats, where the label row has far less room to work with.
+   */
+  const isSquare = Math.abs(width - height) < 1;
+  const maxLabels = isVertical ? 6 : isSquare ? 8 : 14;
+  const labelStep = Math.max(1, Math.ceil(points.length / maxLabels));
+  const axisFont = px(isVertical ? type.caption * 0.78 : type.caption * 0.9);
+
   return (
     <AbsoluteFill
       style={{
@@ -265,14 +285,14 @@ export const LineChart: React.FC<LineChartProps> = ({
         <div style={{ position: "relative", flex: 1, width: "100%", display: "flex" }}>
           <div style={{ position: "relative", flex: 1 }}>
             {showGrid
-              ? [0, 25, 50, 75, 100].map((g) => (
+              ? gridLevels.map((g) => (
                   <div
-                    key={g}
+                    key={g.pct}
                     style={{
                       position: "absolute",
                       left: 0,
                       right: 0,
-                      bottom: `${g}%`,
+                      bottom: `${g.pct}%`,
                       height: px(1),
                       background: `${palette.textPrimary}0F`,
                       transformOrigin: "left center",
@@ -365,8 +385,35 @@ export const LineChart: React.FC<LineChartProps> = ({
               : null}
           </div>
 
-          {/* Reserved so the value pill never covers the final dot. */}
-          <div style={{ width: gutter, flexShrink: 0 }} />
+          {/*
+            Reserved so the value pill never covers the final dot — and, when
+            gridlines are on, it's where each line's value is printed. A
+            gridline without a number is decoration; with one it's a scale.
+          */}
+          <div style={{ width: gutter, flexShrink: 0, position: "relative" }}>
+            {showGrid
+              ? gridLevels.map((g) => (
+                  <div
+                    key={g.pct}
+                    style={{
+                      position: "absolute",
+                      left: px(space.sm),
+                      bottom: `${g.pct}%`,
+                      transform: "translateY(50%)",
+                      fontFamily: font.numeric,
+                      fontWeight: weight.medium,
+                      fontSize: axisFont,
+                      color: palette.textSecondary,
+                      whiteSpace: "nowrap",
+                      opacity: gridIn * 0.9,
+                      ...tabular,
+                    }}
+                  >
+                    {format(g.value)}
+                  </div>
+                ))
+              : null}
+          </div>
 
           <div
             style={{
@@ -427,7 +474,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 textAlign: "center",
                 fontFamily: font.body,
                 fontWeight: weight.medium,
-                fontSize: px(type.caption),
+                fontSize: axisFont,
                 color: palette.textSecondary,
                 opacity: interpolate(
                   draw,
@@ -436,10 +483,21 @@ export const LineChart: React.FC<LineChartProps> = ({
                   { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
                 ),
                 whiteSpace: "nowrap",
-                overflow: "hidden",
+                // Visible, not hidden: each label owns a narrow flex slot, and
+                // clipping chopped longer ones ("2026" became "202"). Thinning
+                // leaves the neighbouring slots empty, so overflow is free.
+                overflow: "visible",
               }}
             >
-              {p.label}
+              {/*
+                Every Nth label, plus the last — but only if the last isn't
+                already sitting next to one that's shown, or the two collide
+                into an unreadable smudge at the end of the axis.
+              */}
+              {i % labelStep === 0 ||
+              (i === points.length - 1 && (points.length - 1) % labelStep >= 2)
+                ? p.label
+                : ""}
             </div>
           ))}
         </div>

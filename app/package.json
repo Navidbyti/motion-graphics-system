@@ -1,7 +1,7 @@
 {
   "name": "app",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.6",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,ui -c cyan,magenta \"npm:dev:server\" \"npm:dev:ui\"",
@@ -56,10 +56,10 @@
     "extraResources": [
       {
         "from": "build/engine",
-        "to": "app.asar.unpacked/engine"
+        "to": "engine"
       }
     ],
-    "asar": true,
+    "asar": false,
     "win": {
       "target": [
         {

@@ -9,15 +9,60 @@
  * left running if the app is force-quit.
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BrowserWindow, app, ipcMain, shell } from "electron";
+import { BrowserWindow, app, ipcMain, shell, utilityProcess } from "electron";
 import electronUpdater from "electron-updater";
 
 const { autoUpdater } = electronUpdater;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
+
+/**
+ * Name the app before anything reads a path from it.
+ *
+ * `app.getPath("userData")` derives from package.json's `name`, which is "app"
+ * — so settings, logs and the user's .env were landing in
+ * AppData\Roaming\app. Generic enough to collide with another Electron app and
+ * impossible to find when you need the log.
+ */
+app.setName("Motion Graphics");
+
+/* ------------------------------------------------------------------ *
+ * Logging
+ * ------------------------------------------------------------------ */
+
+/**
+ * Log to a file, not just the console.
+ *
+ * A packaged app has no visible console, so when it failed to open a window on
+ * someone else's machine there was nothing to inspect — the process was alive
+ * and completely silent. Anything that can go wrong during boot has to leave a
+ * trace somewhere a person can find it.
+ */
+let logPath = null;
+
+const log = (...parts) => {
+  const line = `[${new Date().toISOString()}] ${parts
+    .map((p) => (p instanceof Error ? (p.stack ?? p.message) : String(p)))
+    .join(" ")}`;
+  console.log(line);
+  try {
+    if (!logPath) {
+      const dir = path.join(app.getPath("userData"), "logs");
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      logPath = path.join(dir, "main.log");
+    }
+    appendFileSync(logPath, line + "\n");
+  } catch {
+    /* logging must never be the thing that breaks startup */
+  }
+};
+
+// A rejected promise during boot previously vanished without trace.
+process.on("unhandledRejection", (err) => log("[unhandledRejection]", err));
+process.on("uncaughtException", (err) => log("[uncaughtException]", err));
 
 /* ------------------------------------------------------------------ *
  * Environment — must happen before the server module is imported
@@ -106,9 +151,10 @@ let renderServer = null;
  */
 const shutdownNow = () => {
   try {
-    renderServer?.close();
+    // A utility process exposes kill(); the dev path has no server at all.
+    renderServer?.kill();
   } catch {
-    /* already closed */
+    /* already gone */
   }
   try {
     mainWindow?.destroy();
@@ -140,6 +186,31 @@ const createWindow = () => {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
+
+  /**
+   * Show the window even if the page never becomes ready.
+   *
+   * With `show: false`, the window only appears on `ready-to-show` — and that
+   * event never fires if the renderer fails to load. The result is an invisible
+   * app: a live process, no window, no error. An empty window the user can see
+   * and report is strictly better than a hidden one.
+   */
+  const failsafe = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      log("[window] ready-to-show never fired — showing anyway");
+      mainWindow.show();
+    }
+  }, 4000);
+  mainWindow.once("show", () => clearTimeout(failsafe));
+
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    log(`[window] failed to load ${url}: ${desc} (${code})`);
+    if (!mainWindow.isDestroyed()) mainWindow.show();
+  });
+
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    log(`[window] renderer gone: ${details.reason}`);
+  });
 
   // External links open in the real browser, not inside the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -217,33 +288,97 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+/**
+ * Start the render server. Deliberately NOT awaited before the window opens.
+ *
+ * This used to run before `createWindow()`, and the server module has a
+ * top-level await on the render service. When that import failed in the
+ * packaged app the promise rejected, the window was never created, and nothing
+ * was logged — the app appeared as a live process with no window and no error.
+ *
+ * The window now opens first no matter what, and a failure here becomes a
+ * message the editor can read and send on.
+ */
+const startRenderServer = () => {
+  if (isDev) return;
+  try {
+    // The app ships unarchived (build.asar = false), so the engine is simply a
+    // folder under resources — no asar path translation involved.
+    const engineRoot = path.join(process.resourcesPath, "engine");
+    log(`[server] engine root: ${engineRoot} (exists: ${existsSync(engineRoot)})`);
+
+    /**
+     * The server runs in a utility process, NOT in the main process.
+     *
+     * Importing it here loaded Remotion's bundler on the main thread, and
+     * module evaluation is synchronous — it blocked for ~17 seconds on a fast
+     * machine and considerably longer on a slow one. During that block the
+     * window can't paint and `ready-to-show` can't be delivered, so the app was
+     * simply invisible for the whole time. That's what "clicking it does
+     * nothing" was.
+     *
+     * `utilityProcess` also solves the reason the import was in-process to
+     * begin with: Electron owns the child's lifetime, so it can't outlive the
+     * app the way a bare spawned process could.
+     */
+    renderServer = utilityProcess.fork(path.join(here, "..", "server", "index.mjs"), [], {
+      env: {
+        ...process.env,
+        MG_ENGINE_ROOT: engineRoot,
+        MG_PORT: String(apiPort),
+      },
+      stdio: "pipe",
+    });
+
+    renderServer.stdout?.on("data", (d) => log(`[server] ${String(d).trim()}`));
+    renderServer.stderr?.on("data", (d) => log(`[server:err] ${String(d).trim()}`));
+
+    renderServer.on("spawn", () => {
+      log(`[server] process spawned, warming on port ${apiPort}`);
+      send("server:status", { ok: true, port: apiPort });
+    });
+
+    renderServer.on("exit", (code) => {
+      log(`[server] exited with code ${code}`);
+      if (code !== 0) {
+        send("server:status", {
+          ok: false,
+          message: "The render engine stopped. Restart the app to try again.",
+        });
+      }
+    });
+  } catch (err) {
+    log("[server] FAILED to start", err);
+    send("server:status", {
+      ok: false,
+      message: `The render engine didn't start: ${String(err?.message ?? err)}`,
+    });
+  }
+};
+
   app.whenReady().then(async () => {
+    log(`[boot] version ${app.getVersion()} packaged=${app.isPackaged}`);
     loadEnvironment();
-    process.env.MG_WATCH_FOLDER = resolveWatchFolder();
 
-    apiPort = await findFreePort(Number(process.env.MG_PORT ?? 3131));
+    try {
+      process.env.MG_WATCH_FOLDER = resolveWatchFolder();
+    } catch (err) {
+      log("[boot] could not create watch folder", err);
+    }
+
+    try {
+      apiPort = await findFreePort(Number(process.env.MG_PORT ?? 3131));
+    } catch (err) {
+      log("[boot] port probe failed, falling back to 3131", err);
+      apiPort = 3131;
+    }
     process.env.MG_PORT = String(apiPort);
-    if (apiPort !== 3131) console.log(`[port] 3131 was taken, using ${apiPort}`);
+    log(`[boot] api port ${apiPort}`);
 
-    if (!isDev) {
-      // Packaged: the engine is unpacked from the asar archive because
-      // Remotion's bundler reads those files from disk directly.
-      process.env.MG_ENGINE_ROOT = path.join(
-        process.resourcesPath,
-        "app.asar.unpacked",
-        "engine",
-      );
-    }
-
-    // Dynamic import so the environment above is already in place — see the
-    // note on loadEnvironment().
-    if (!isDev) {
-      const mod = await import("../server/index.mjs");
-      renderServer = mod.server ?? null;
-    }
-
+    // Window FIRST. Everything after this can fail visibly instead of silently.
     createWindow();
     setupUpdates();
+    startRenderServer();
   });
 
   // Closing the window closes the app — and closes it *hard*, so a stale
