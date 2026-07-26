@@ -1,0 +1,13 @@
+/*
+ * Intentionally near-empty.
+ *
+ * Templates style themselves entirely from brand/tokens.ts inline, so there is
+ * no global stylesheet to drift out of sync with the tokens. Tailwind was
+ * removed: it was pulled in by the scaffold despite --no-tailwind, went unused,
+ * and required a webpack override that complicated bundling from Node (which is
+ * how the Electron app renders).
+ */
+
+* {
+  box-sizing: border-box;
+}

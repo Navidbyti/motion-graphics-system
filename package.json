@@ -1,0 +1,15 @@
+{
+  "name": "motion-graphics-system",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Reusable Remotion motion graphics templates with a GUI for the editor",
+  "workspaces": [
+    "engine",
+    "app"
+  ],
+  "scripts": {
+    "app": "npm run dev -w app",
+    "studio": "npm run dev -w engine",
+    "check": "npm run check -w engine"
+  }
+}

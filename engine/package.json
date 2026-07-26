@@ -1,0 +1,39 @@
+{
+  "name": "engine",
+  "version": "1.0.0",
+  "description": "My Remotion video",
+  "repository": {},
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@remotion/bundler": "^4.0.499",
+    "@remotion/cli": "4.0.499",
+    "@remotion/player": "^4.0.499",
+    "@remotion/renderer": "^4.0.499",
+    "@remotion/zod-types": "^4.0.499",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.499",
+    "zod": "^3.22.3"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.499",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "9.19.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc",
+    "render:overlay": "remotion render --image-format=png --pixel-format=yuva444p10le --codec=prores --prores-profile=4444",
+    "render:preview": "remotion render --codec=h264",
+    "check": "tsc --noEmit && eslint src"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

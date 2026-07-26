@@ -1,0 +1,175 @@
+/*
+ * App chrome only. Nothing here affects rendered video — templates style
+ * themselves entirely from the engine's brand tokens.
+ */
+
+:root {
+  --bg: #0d1117;
+  --panel: #151b24;
+  --raised: #1d2531;
+  --line: #263040;
+  --text: #e8edf5;
+  --muted: #8b97a8;
+  --accent: #2f6bff;
+  --ok: #22c55e;
+  --bad: #ef4444;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: #3a475c; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.active { background: var(--accent); border-color: var(--accent); }
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+  padding: 11px 16px;
+  width: 100%;
+}
+
+input, select, textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  width: 100%;
+}
+input[type="checkbox"] { width: 18px; height: 18px; }
+input[type="color"] { width: 44px; padding: 2px; }
+input[type="range"] { padding: 0; }
+
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 20px; border-bottom: 1px solid var(--line);
+}
+.brand { background: none; border: none; font-weight: 700; padding: 0; }
+.banner-error { color: var(--bad); }
+
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.error { color: var(--bad); }
+.ok { color: var(--ok); word-break: break-all; }
+
+/* ---------------- library ---------------- */
+
+.library { padding: 28px 32px; }
+.library h1 { margin: 0 0 4px; font-size: 24px; }
+
+.grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.card {
+  padding: 0; overflow: hidden; text-align: left;
+  background: var(--panel); border-radius: 14px;
+}
+.card-preview {
+  aspect-ratio: 9 / 16; background: #000;
+  display: flex; align-items: center; justify-content: center;
+  /*
+   * The <Player> swallows clicks, so without this only the text strip below
+   * the preview opens the template — clicking the video itself does nothing.
+   * The card is the button; the preview is decoration.
+   */
+  pointer-events: none;
+}
+.card-body { padding: 12px 14px 16px; display: grid; gap: 4px; }
+
+.tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.tag {
+  font-size: 11px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+}
+
+/* ---------------- edit ---------------- */
+
+.edit {
+  flex: 1; display: grid; grid-template-columns: 1fr 380px;
+  min-height: 0;
+}
+
+.stage { display: flex; flex-direction: column; min-width: 0; }
+.stage-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px; border-bottom: 1px solid var(--line);
+}
+.stage-canvas {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 24px; min-height: 0;
+}
+
+.btn-group { display: flex; gap: 6px; }
+
+.panel {
+  border-left: 1px solid var(--line); background: var(--panel);
+  padding: 20px; overflow-y: auto;
+}
+.panel h2 { margin: 0 0 16px; font-size: 17px; }
+
+.prompt {
+  display: grid; gap: 8px; margin-bottom: 20px;
+  padding: 12px; border-radius: 10px;
+  background: var(--raised); border: 1px solid var(--line);
+}
+.prompt textarea { resize: vertical; }
+.prompt p { margin: 0; }
+
+.form { display: grid; gap: 16px; }
+.field { display: grid; gap: 6px; }
+.field-label { font-size: 12px; color: var(--muted); }
+
+.color-row { display: flex; gap: 8px; align-items: center; }
+.number-row { display: grid; grid-template-columns: 1fr 84px; gap: 8px; align-items: center; }
+
+/* ---------------- table editor ---------------- */
+
+.table-editor {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px; display: grid; gap: 10px;
+}
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.row-between button { padding: 4px 8px; font-size: 12px; }
+
+.paste { display: grid; gap: 6px; }
+.paste textarea { font-family: ui-monospace, monospace; font-size: 12px; }
+
+.table-scroll { max-height: 260px; overflow: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { padding: 2px 4px; text-align: left; }
+th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+td input { padding: 4px 6px; }
+.idx { color: var(--muted); width: 26px; }
+
+/* ---------------- export ---------------- */
+
+.export {
+  margin-top: 24px; padding-top: 20px;
+  border-top: 1px solid var(--line);
+  display: grid; gap: 12px;
+}
+.export p { margin: 0; }
