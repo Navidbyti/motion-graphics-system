@@ -112,6 +112,10 @@ const findFreePort = async (start) => {
       const probe = net.createServer();
       probe.once("error", () => resolve(false));
       probe.once("listening", () => probe.close(() => resolve(true)));
+      // Must match how the render server binds (server/index.mjs, 127.0.0.1).
+      // A probe that tests a narrower address than the real bind reports free
+      // for a port that is not, and the server then dies with EADDRINUSE the
+      // moment it starts.
       probe.listen(port, "127.0.0.1");
     });
     if (free) return port;

@@ -162,8 +162,23 @@ const PORT = process.env.MG_PORT ?? 3131;
  * handles open, and the NSIS installer refuses to run while any part of the app
  * is still alive.
  */
-export const server = app.listen(PORT, async () => {
-  console.log(`render server  http://localhost:${PORT}`);
+/**
+ * Bound to the loopback address explicitly, for two reasons.
+ *
+ * Security: this API renders files and writes them to disk. `app.listen(port)`
+ * binds every interface, which puts that on the local network — anyone on the
+ * same café Wi-Fi could drive it. Nothing outside this machine has any business
+ * reaching it.
+ *
+ * Correctness: Electron probes for a free port before starting this process,
+ * and it probes 127.0.0.1. Binding a wider address than the probe checked means
+ * the probe can pass while the bind fails with EADDRINUSE — the app then boots
+ * with no render server and no explanation. That happened: another process held
+ * the port on the wildcard address, the probe on 127.0.0.1 succeeded, and the
+ * server died a second later. Probe and bind must agree.
+ */
+export const server = app.listen(PORT, "127.0.0.1", async () => {
+  console.log(`render server  http://127.0.0.1:${PORT}`);
   console.log(`watch folder   ${WATCH_FOLDER}`);
   console.log(`browser        ${resolveBrowser() ?? "NONE FOUND"}`);
   console.log(`proxy          ${proxyInUse ?? "direct (no HTTPS_PROXY set)"}`);

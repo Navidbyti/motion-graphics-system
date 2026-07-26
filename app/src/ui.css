@@ -225,6 +225,69 @@ td input { padding: 4px 6px; }
 }
 .export p { margin: 0; }
 
+/* ---------------- docs ---------------- */
+
+.docs { padding: 28px 32px 64px; overflow-y: auto; }
+.docs-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 20px; margin-bottom: 12px; max-width: 860px;
+}
+.docs-head h1 { margin: 0 0 4px; font-size: 22px; }
+.docs-head p { margin: 0; }
+.docs-hint {
+  max-width: 860px; margin: 0 0 24px;
+  padding: 10px 12px; border-radius: 8px;
+  background: var(--raised); border: 1px solid var(--line);
+}
+.docs-body { max-width: 860px; }
+.docs-body h2 { font-size: 20px; margin: 32px 0 10px; }
+.docs-body h3 { font-size: 16px; margin: 26px 0 8px; }
+.docs-body h4 { font-size: 14px; margin: 20px 0 6px; color: var(--muted); }
+.docs-body p, .docs-body li { color: #c8d1de; }
+.docs-body ul, .docs-body ol { margin: 10px 0; padding-left: 22px; }
+.docs-body li { margin: 5px 0; }
+.docs-body hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+.docs-body code {
+  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  background: #10161f; border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px; color: #9ecbff;
+}
+.docs-body pre {
+  background: #0a0e14; border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; overflow-x: auto; margin: 12px 0;
+}
+/* The border and background belong to the block, not to each token inside it. */
+.docs-body pre code {
+  background: none; border: none; padding: 0;
+  color: #cbd5e1; font-size: 12.5px; line-height: 1.6;
+}
+.docs-body strong { color: var(--text); }
+
+/* ---------------- colour tuner ---------------- */
+
+.tuner-open { width: 100%; margin-top: 16px; display: flex; justify-content: center; gap: 8px; }
+.tuner-count {
+  background: var(--accent); color: #fff; border-radius: 999px;
+  font-size: 11px; padding: 0 7px; line-height: 17px;
+}
+.tuner {
+  margin-top: 16px; padding: 12px; display: grid; gap: 8px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--raised);
+}
+.tuner-note { margin: 0 0 2px; }
+.tuner-row { display: flex; align-items: center; gap: 8px; }
+.tuner-row input[type="color"] { flex: none; width: 34px; height: 30px; }
+.tuner-meta { display: grid; min-width: 0; flex: 1; }
+.tuner-name { font-size: 12px; }
+.tuner-name.changed { color: var(--accent); font-weight: 600; }
+.tuner-hint {
+  font-size: 11px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.tuner-hex { flex: none; width: 86px; font-size: 12px; padding: 5px 6px; }
+.tuner-reset { flex: none; font-size: 15px; text-decoration: none; }
+.tuner-reset:disabled { opacity: 0.25; }
+
 /* ---------------- market data ---------------- */
 
 .market-open { width: 100%; margin-bottom: 8px; }

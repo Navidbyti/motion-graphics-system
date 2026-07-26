@@ -11,7 +11,10 @@ import { formats } from "@engine/brand/tokens";
 import { FPS } from "@engine/Root";
 import { compositionId, registry, type FormatName } from "@engine/registry";
 import { SchemaForm } from "./SchemaForm";
+import { ColourTuner } from "./ColourTuner";
+import { Docs } from "./Docs";
 import { Settings, loadCustomTheme } from "./Settings";
+import type { ThemeInput } from "@engine/brand/theme";
 
 type Backdrop =
   | "checker"
@@ -196,6 +199,7 @@ const CUSTOM_BACKDROP_KEY = "mg.customBackdrop";
 export const App: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
 
   useEffect(() => {
@@ -216,13 +220,28 @@ export const App: React.FC = () => {
         {health && !health.ok ? (
           <span className="banner-error">{health.problem}</span>
         ) : null}
-        <button onClick={() => setSettingsOpen((o) => !o)}>
+        <button
+          onClick={() => {
+            setDocsOpen((o) => !o);
+            setSettingsOpen(false);
+          }}
+        >
+          {docsOpen ? "Close" : "How to add templates"}
+        </button>
+        <button
+          onClick={() => {
+            setSettingsOpen((o) => !o);
+            setDocsOpen(false);
+          }}
+        >
           {settingsOpen ? "Close" : "Theme"}
         </button>
         <SyncButton />
       </header>
 
-      {settingsOpen ? (
+      {docsOpen ? (
+        <Docs onClose={() => setDocsOpen(false)} />
+      ) : settingsOpen ? (
         <Settings onClose={() => setSettingsOpen(false)} />
       ) : template ? (
         <EditScreen
@@ -360,15 +379,30 @@ const EditScreen: React.FC<{
   }, [template, props]);
 
   /**
-   * The custom theme is attached at render time rather than edited in the props
-   * panel — it's a per-person setting, not a per-video one. Attaching it to the
-   * same object used by both <Player> and the export is what guarantees the
-   * preview and the file agree.
+   * Read once per mount. Opening Settings unmounts this screen, so returning
+   * from it picks up whatever was saved without needing to watch storage.
    */
-  const renderProps = useMemo(
-    () => (props.brand === "custom" ? { ...props, theme: loadCustomTheme() } : props),
-    [props],
-  );
+  const [customTheme] = useState(loadCustomTheme);
+
+  /**
+   * Two layers, and the order matters.
+   *
+   * The saved custom theme is a per-person setting; `props.theme` holds the
+   * per-graphic colour overrides from the tuner. The overrides go on top, and
+   * for a house brand they travel alone — `resolveTheme` merges them over that
+   * brand, so an untouched colour keeps following the brand rather than being
+   * frozen at whatever it happened to be today.
+   *
+   * Attaching this to the same object used by both <Player> and the export is
+   * what guarantees the preview and the file agree.
+   */
+  const renderProps = useMemo(() => {
+    if (props.brand !== "custom") return props;
+    return {
+      ...props,
+      theme: { ...customTheme, ...((props.theme as ThemeInput) ?? {}) },
+    };
+  }, [props, customTheme]);
 
   // Poll while a render is in flight. One editor, one job — no websocket needed.
   useEffect(() => {
@@ -522,6 +556,25 @@ const EditScreen: React.FC<{
           value={props}
           labels={template.labels}
           onChange={setProps}
+        />
+
+        {/*
+          Sits below the generated form rather than inside it: the colours are
+          not a schema field the editor fills in, they are an override layer on
+          top of whichever brand the form selected.
+        */}
+        <ColourTuner
+          brand={String(props.brand ?? "")}
+          theme={props.theme as ThemeInput | undefined}
+          customTheme={customTheme}
+          onChange={(theme) =>
+            setProps((p) => {
+              const next = { ...p };
+              if (theme) next.theme = theme;
+              else delete next.theme;
+              return next;
+            })
+          }
         />
 
         <div className="export">
