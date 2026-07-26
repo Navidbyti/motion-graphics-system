@@ -195,7 +195,7 @@ const textCard = defineTemplate({
   formats: FORMATS,
   overlay: true,
   durationInFrames: (props, fps) =>
-    Math.round(textCardSeconds(props.text, props.animation, props.holdSeconds, props.speed) * fps),
+    Math.round(textCardSeconds(props.text, props.animation, props.holdSeconds, props.speed, props.typing && props.background === "native") * fps),
 });
 
 export const registry: AnyTemplateEntry[] = [

@@ -21,11 +21,27 @@ export const textCardSchema = withCommon({
     ),
 
   background: z
-    .enum(["none", "solid", "gradient", "bubble", "scrim"])
+    .enum([
+      "native",
+      "glass",
+      "clay",
+      "pill",
+      "brutalist",
+      "solid",
+      "gradient",
+      "scrim",
+      "none",
+    ])
     .describe(
-      "None = text only, Solid = brand card, Gradient = brand gradient card, " +
-        "Bubble = chat bubble, Scrim = darkened footage behind the text",
+      "Native = iMessage-style bubble, Glass = frosted panel, Clay = soft 3D " +
+        "bubble, Pill = minimal rounded tag, Brutalist = hard box with offset " +
+        "shadow, Solid/Gradient = brand card, Scrim = darkened footage, None = " +
+        "text only",
     ),
+
+  typing: toggle(
+    "On the Native bubble, show a typing indicator before the text arrives",
+  ),
 
   align: z.enum(["start", "center"]).describe("Text alignment"),
 
@@ -48,11 +64,12 @@ export const textCardDefaults: TextCardProps = {
   brand: "cashForChat",
   text: "Talk to someone who's actually done it.",
   animation: "words",
-  background: "bubble",
+  background: "native",
   align: "start",
   emphasis: "actually",
   holdSeconds: 2,
   showTail: true,
+  typing: true,
   scale: 1,
   direction: "ltr",
   speed: 1,
@@ -79,6 +96,8 @@ export const textCardSeconds = (
   animation: TextCardProps["animation"],
   holdSeconds: number,
   speed: number,
+  /** The typing indicator adds time before the text starts revealing. */
+  typing = false,
 ) => {
   const reveal =
     animation === "typewriter"
@@ -89,5 +108,7 @@ export const textCardSeconds = (
           ? Math.max(linesOf(text).length, 1) * 0.18
           : 0.35;
 
-  return (TIMING.intro + reveal + holdSeconds + TIMING.outro) / speed;
+  return (
+    (TIMING.intro + (typing ? 0.85 : 0) + reveal + holdSeconds + TIMING.outro) / speed
+  );
 };
