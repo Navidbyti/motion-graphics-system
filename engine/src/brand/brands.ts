@@ -80,9 +80,9 @@ export const cashForChat: BrandDefinition = {
     negative: "#E02B0A",
   },
   font: {
-    display: '"Poppins", "Segoe UI", system-ui, sans-serif',
-    body: '"Inter", "Segoe UI", system-ui, sans-serif',
-    numeric: '"Inter", "Segoe UI", system-ui, sans-serif',
+    display: '"Poppins", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    body: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    numeric: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
   },
   logo: { src: null, aspect: 1 },
   // Friendly and human — this is the one brand that earns a bounce.
@@ -106,9 +106,9 @@ export const billionaireSignal: BrandDefinition = {
     negative: "#EF4444",
   },
   font: {
-    display: '"Inter", "Segoe UI", system-ui, sans-serif',
-    body: '"Inter", "Segoe UI", system-ui, sans-serif',
-    numeric: '"Inter", "Segoe UI", system-ui, sans-serif',
+    display: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    body: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    numeric: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
   },
   logo: { src: null, aspect: 1 },
   // Premium and authoritative. Weighted, no bounce — springiness would
@@ -133,9 +133,9 @@ export const freeHotelCard: BrandDefinition = {
     negative: "#E4572E",
   },
   font: {
-    display: '"Poppins", "Segoe UI", system-ui, sans-serif',
-    body: '"Inter", "Segoe UI", system-ui, sans-serif',
-    numeric: '"Inter", "Segoe UI", system-ui, sans-serif',
+    display: '"Poppins", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    body: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    numeric: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
   },
   logo: { src: null, aspect: 2.2 },
   // Light and optimistic — smooth glides rather than bounce or weight.

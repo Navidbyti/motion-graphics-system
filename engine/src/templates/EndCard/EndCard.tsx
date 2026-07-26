@@ -15,7 +15,7 @@
  */
 
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { resolveTheme } from "../../brand/theme";
+import { useTheme } from "../../brand/useTheme";
 import { radius, space, type, weight } from "../../brand/tokens";
 import { useLayout } from "../../layout";
 import { EASE, exit, fadeUp, scaleIn, sec } from "../../motion";
@@ -38,7 +38,7 @@ export const EndCard: React.FC<EndCardProps> = ({
   const { fps, durationInFrames } = useVideoConfig();
   const { px, dir, textStart } = useLayout({ scale, direction });
 
-  const b = resolveTheme(brand, theme);
+  const b = useTheme(brand, theme);
   const { palette, font } = b;
 
   const pace = speed * b.motion.pace;

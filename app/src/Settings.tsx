@@ -49,6 +49,101 @@ const MOTION_OPTIONS: { value: ThemeInput["motion"]; label: string }[] = [
   { value: "exact", label: "Exact — no overshoot at all" },
 ];
 
+/**
+ * Custom font upload.
+ *
+ * The file is embedded as a data URL rather than referenced by path. The render
+ * process is separate from the UI, so a path picked here may not resolve there
+ * — and the template contract forbids fetching anything at render time. Storing
+ * the bytes means the preview and the export use byte-identical data.
+ *
+ * Capped because the theme is persisted to localStorage and sent with every
+ * render; a 5 MB desktop TTF would bloat both. A woff2 is typically 30–150 KB.
+ */
+const MAX_FONT_BYTES = 3 * 1024 * 1024;
+
+const FontUpload: React.FC<{
+  theme: ThemeInput;
+  onChange: (fn: (t: ThemeInput) => ThemeInput) => void;
+}> = ({ theme, onChange }) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const onFile = async (file?: File) => {
+    setError(null);
+    if (!file) return;
+
+    if (file.size > MAX_FONT_BYTES) {
+      return setError(
+        `That file is ${Math.round(file.size / 1024 / 1024)} MB. Keep it under 3 MB — ` +
+          `a .woff2 is usually well under 1 MB.`,
+      );
+    }
+
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    // Chunked: String.fromCharCode(...bytes) blows the argument limit on
+    // anything but a tiny file.
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const mime =
+      ext === "woff2"
+        ? "font/woff2"
+        : ext === "woff"
+          ? "font/woff"
+          : ext === "otf"
+            ? "font/otf"
+            : "font/ttf";
+
+    const name = file.name.replace(/\.[^.]+$/, "");
+    onChange((t) => ({
+      ...t,
+      customFontName: name,
+      customFontData: `data:${mime};base64,${btoa(binary)}`,
+      fontDisplay: name,
+      fontBody: name,
+    }));
+  };
+
+  return (
+    <label className="field">
+      <span className="field-label">Custom font file — optional</span>
+      <input
+        type="file"
+        accept=".woff2,.woff,.ttf,.otf"
+        onChange={(e) => onFile(e.target.files?.[0])}
+      />
+      {theme.customFontName ? (
+        <span className="muted small">
+          Using “{theme.customFontName}”.{" "}
+          <button
+            type="button"
+            onClick={() =>
+              onChange((t) => ({
+                ...t,
+                customFontName: undefined,
+                customFontData: undefined,
+                fontDisplay: "Inter",
+                fontBody: "Inter",
+              }))
+            }
+          >
+            Remove
+          </button>
+        </span>
+      ) : (
+        <span className="muted small">
+          .woff2 is best — smallest file, works everywhere.
+        </span>
+      )}
+      {error ? <span className="error small">{error}</span> : null}
+    </label>
+  );
+};
+
 export const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [theme, setTheme] = useState<ThemeInput>(loadCustomTheme);
   const [saved, setSaved] = useState(false);
@@ -136,6 +231,8 @@ export const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             <option key={f} value={f} />
           ))}
         </datalist>
+
+        <FontUpload theme={theme} onChange={setTheme} />
 
         <label className="field">
           <span className="field-label">Motion personality</span>

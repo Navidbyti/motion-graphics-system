@@ -47,6 +47,17 @@ export const themeSchema = z.object({
   /** Entrance feel, mirroring the built-in brands' motion personality. */
   motion: z.enum(["snappy", "settle", "pop", "heavy", "exact"]),
   pace: z.number().min(0.5).max(2),
+
+  /**
+   * A user-supplied font, carried as a data URL rather than a path.
+   *
+   * The renderer is a separate process from the UI, so a file path picked in
+   * Settings might not resolve there — and the template contract forbids
+   * fetching anything at render time. Embedding the bytes means the preview and
+   * the export load exactly the same font.
+   */
+  customFontName: z.string().max(60).optional(),
+  customFontData: z.string().optional(),
 });
 
 export type ThemeInput = z.infer<typeof themeSchema>;
@@ -72,7 +83,7 @@ export const defaultTheme: ThemeInput = {
 
 /** Always end in a real stack, so a missing family degrades rather than breaks. */
 const stack = (family: string) =>
-  `"${family}", "Segoe UI", system-ui, sans-serif`;
+  `"${family}", "Vazirmatn", "Segoe UI", system-ui, sans-serif`;
 
 const fromTheme = (theme: ThemeInput): BrandDefinition => ({
   id: "custom",
