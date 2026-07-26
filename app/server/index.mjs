@@ -16,6 +16,7 @@ import express from "express";
 import { pathToFileURL } from "node:url";
 import { proxyInUse } from "./http.mjs";
 import { ASSETS, TIMEFRAMES, fetchMarketSeries } from "./market.mjs";
+import { LANGUAGES, MODELS, transcribe, whisperStatus } from "./whisper.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(here, "..", "..");
@@ -77,6 +78,42 @@ app.get("/api/health", (_req, res) => {
       ? null
       : "No Chrome or Edge found. The renderer needs an installed browser.",
   });
+});
+
+/* ---------------- transcription ---------------- */
+
+app.get("/api/whisper/status", (_req, res) => {
+  res.json({ ...whisperStatus(), models: MODELS, languages: LANGUAGES, installed: whisperStatus().models });
+});
+
+app.post("/api/whisper/transcribe", async (req, res) => {
+  const { source, model, language, fps } = req.body ?? {};
+
+  /*
+    Runs as a job rather than a request. A 20-minute interview on the Medium
+    model takes several minutes, and an HTTP request held open that long dies to
+    a proxy or a timeout somewhere in between — with the work already done and
+    no way to report it.
+  */
+  const id = String(nextJobId++);
+  jobs.set(id, { id, status: "working", stage: "starting", percent: null });
+
+  res.json({ id });
+
+  try {
+    const result = await transcribe({
+      source,
+      model,
+      language,
+      fps: Number(fps) || 30,
+      outputDir: path.join(WATCH_FOLDER, "Subtitles"),
+      onProgress: (p) =>
+        jobs.set(id, { ...jobs.get(id), status: "working", ...p }),
+    });
+    jobs.set(id, { id, status: "done", ...result });
+  } catch (err) {
+    jobs.set(id, { id, status: "error", error: String(err?.message ?? err) });
+  }
 });
 
 /* ---------------- market data ---------------- */

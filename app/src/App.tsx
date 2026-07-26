@@ -13,6 +13,7 @@ import { compositionId, registry, type FormatName } from "@engine/registry";
 import { SchemaForm } from "./SchemaForm";
 import { ColourTuner } from "./ColourTuner";
 import { Docs } from "./Docs";
+import { Subtitles } from "./Subtitles";
 import { Settings, loadCustomTheme } from "./Settings";
 import type { ThemeInput } from "@engine/brand/theme";
 
@@ -200,6 +201,7 @@ export const App: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
+  const [subsOpen, setSubsOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
 
   useEffect(() => {
@@ -222,7 +224,17 @@ export const App: React.FC = () => {
         ) : null}
         <button
           onClick={() => {
+            setSubsOpen((o) => !o);
+            setDocsOpen(false);
+            setSettingsOpen(false);
+          }}
+        >
+          {subsOpen ? "Close" : "Subtitles"}
+        </button>
+        <button
+          onClick={() => {
             setDocsOpen((o) => !o);
+            setSubsOpen(false);
             setSettingsOpen(false);
           }}
         >
@@ -232,6 +244,7 @@ export const App: React.FC = () => {
           onClick={() => {
             setSettingsOpen((o) => !o);
             setDocsOpen(false);
+            setSubsOpen(false);
           }}
         >
           {settingsOpen ? "Close" : "Theme"}
@@ -239,7 +252,9 @@ export const App: React.FC = () => {
         <SyncButton />
       </header>
 
-      {docsOpen ? (
+      {subsOpen ? (
+        <Subtitles onClose={() => setSubsOpen(false)} />
+      ) : docsOpen ? (
         <Docs onClose={() => setDocsOpen(false)} />
       ) : settingsOpen ? (
         <Settings onClose={() => setSettingsOpen(false)} />
@@ -318,7 +333,7 @@ const EditScreen: React.FC<{
    * the stage, and without a fit mode the player overflowed instead of
    * shrinking — flex children don't shrink below their content unless told to.
    */
-  const [zoom, setZoom] = useState<"fit" | number>("fit");
+  const [zoom, setZoom] = useState<"fit" | "width" | number>("fit");
 
   /**
    * A frame from the editor's own footage, kept between sessions. Stored as a
@@ -482,19 +497,26 @@ const EditScreen: React.FC<{
               Fit
             </button>
             <button
+              className={zoom === "width" ? "active" : ""}
+              onClick={() => setZoom("width")}
+              title="Fill the full width — scrolls if the format is taller than the window"
+            >
+              Width
+            </button>
+            <button
               onClick={() =>
-                setZoom((z) => Math.max(0.25, (z === "fit" ? 1 : z) - 0.25))
+                setZoom((z) => Math.max(0.25, (typeof z === "number" ? z : 1) - 0.25))
               }
               title="Zoom out"
             >
               −
             </button>
             <span className="muted small zoom-level">
-              {zoom === "fit" ? "fit" : `${Math.round(zoom * 100)}%`}
+              {typeof zoom === "number" ? `${Math.round(zoom * 100)}%` : zoom}
             </span>
             <button
               onClick={() =>
-                setZoom((z) => Math.min(3, (z === "fit" ? 1 : z) + 0.25))
+                setZoom((z) => Math.min(3, (typeof z === "number" ? z : 1) + 0.25))
               }
               title="Zoom in"
             >
@@ -517,7 +539,18 @@ const EditScreen: React.FC<{
           <div
             className="player-frame"
             style={
-              zoom === "fit"
+              zoom === "width"
+                ? {
+                    /*
+                      Fill the stage's width and let the height follow the
+                      format. A 9:16 composition then overflows a wide window
+                      vertically, which is why the canvas switches to scrolling
+                      for this mode as well as for numeric zoom.
+                    */
+                    width: "100%",
+                    aspectRatio: `${formats[format].width} / ${formats[format].height}`,
+                  }
+                : zoom === "fit"
                 ? {
                     aspectRatio: `${formats[format].width} / ${formats[format].height}`,
                     maxWidth: "100%",

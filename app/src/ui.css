@@ -225,6 +225,35 @@ td input { padding: 4px 6px; }
 }
 .export p { margin: 0; }
 
+/* ---------------- subtitles ---------------- */
+
+.subs { max-width: 760px; }
+.subs-grid { display: grid; gap: 16px; margin-bottom: 20px; }
+.subs-file { display: flex; align-items: center; gap: 10px; }
+.subs-file button { flex: none; }
+/* A full path can be very long; keep it on one line and elide the middle. */
+.subs-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.subs-go { max-width: 240px; }
+.subs-progress { margin-top: 18px; display: grid; gap: 6px; max-width: 520px; }
+.bar { height: 6px; background: var(--raised); border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.2s; }
+/* No percentage available — show motion rather than a stuck empty bar. */
+.bar-fill.indeterminate { width: 35%; animation: slide 1.3s ease-in-out infinite; }
+@keyframes slide {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+.subs-done { margin-top: 20px; display: grid; gap: 8px; max-width: 620px; }
+.subs-done p { margin: 0; }
+.subs-files { margin: 4px 0; padding-left: 20px; color: var(--muted); }
+.subs-files li { margin: 3px 0; }
+.subs-files strong { color: var(--text); }
+.subs-preview {
+  border-left: 2px solid var(--line); padding-left: 12px;
+  display: grid; gap: 4px; color: var(--muted);
+}
+.subs-preview p { margin: 0; }
+
 /* ---------------- docs ---------------- */
 
 .docs { padding: 28px 32px 64px; overflow-y: auto; }

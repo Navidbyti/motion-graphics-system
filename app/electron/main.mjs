@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BrowserWindow, app, ipcMain, shell, utilityProcess } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, shell, utilityProcess } from "electron";
 import electronUpdater from "electron-updater";
 
 const { autoUpdater } = electronUpdater;
@@ -381,6 +381,13 @@ const startRenderServer = () => {
         ...process.env,
         MG_ENGINE_ROOT: engineRoot,
         MG_PORT: String(apiPort),
+        /*
+          Transcription downloads a binary and a model of up to 1.6 GB. They go
+          in userData, not beside the app: the install directory is wiped and
+          rewritten by every update, which would re-download the model each
+          time, and on some machines it isn't writable at all.
+        */
+        MG_WHISPER_DIR: path.join(app.getPath("userData"), "whisper"),
       },
       stdio: "pipe",
     });
@@ -488,6 +495,27 @@ ipcMain.handle("update:install", async () => {
 });
 
 ipcMain.handle("shell:openFolder", (_event, folder) => shell.openPath(folder));
+
+/**
+ * Native picker, because the renderer only ever sees a File object with no
+ * path. The transcriber runs in a separate process and needs a real path on
+ * disk — copying a multi-gigabyte video through the browser to get one would be
+ * absurd.
+ */
+ipcMain.handle("dialog:pickMedia", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Choose a video or audio file",
+    properties: ["openFile"],
+    filters: [
+      {
+        name: "Video and audio",
+        extensions: ["mp4", "mov", "mkv", "avi", "webm", "m4v", "mp3", "wav", "m4a", "flac", "ogg", "aac"],
+      },
+      { name: "All files", extensions: ["*"] },
+    ],
+  });
+  return result.canceled ? null : result.filePaths[0];
+});
 
 /**
  * The manual path, for when the updater cannot reach GitHub at all — a blocked

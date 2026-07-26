@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld("desktop", {
 
   openFolder: (folder) => ipcRenderer.invoke("shell:openFolder", folder),
 
+  /** Native file picker — the renderer never sees a real path otherwise. */
+  pickMedia: () => ipcRenderer.invoke("dialog:pickMedia"),
+
   /** Escape hatch when the in-app updater can't reach GitHub. */
   openReleases: () => ipcRenderer.invoke("shell:openReleases"),
 
