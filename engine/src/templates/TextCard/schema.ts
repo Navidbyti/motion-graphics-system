@@ -72,7 +72,7 @@ export const textCardDefaults: TextCardProps = {
   showTail: true,
   typing: true,
   scale: 1,
-  direction: "ltr",
+  direction: "auto",
   speed: 1,
 };
 

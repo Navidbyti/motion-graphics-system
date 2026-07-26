@@ -61,7 +61,7 @@ export const lineChartDefaults: LineChartProps = {
   showDelta: true,
   colourByTrend: true,
   scale: 1,
-  direction: "ltr",
+  direction: "auto",
   speed: 1,
   points: [
     { label: "May", value: 4.5 },

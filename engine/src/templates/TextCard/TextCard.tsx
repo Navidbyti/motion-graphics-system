@@ -45,7 +45,7 @@ export const TextCard: React.FC<TextCardProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const { px, dir, isRTL, textStart } = useLayout({ scale, direction });
+  const { px, dir, isRTL, textStart } = useLayout({ scale, direction, text });
 
   const b = useTheme(brand, theme);
   const { palette, font } = b;
@@ -114,7 +114,19 @@ export const TextCard: React.FC<TextCardProps> = ({
           ? (Math.max(lines.length, 1) * 0.18 * fps) / pace
           : (0.35 * fps) / pace;
 
-  const reveal = interpolate(frame, [startF, startF + revealFrames], [0, 1], {
+  /*
+    Never zero-length.
+
+    `interpolate` throws "inputRange must be strictly monotonically increasing"
+    when both bounds match, and every reveal length here is derived from the
+    text — so clearing the text field made revealFrames 0 and took the whole
+    template down. The editor saw the preview go blank the moment he selected
+    all and deleted, which looks like the app breaking rather than an empty
+    string being empty.
+  */
+  const revealSpan = Math.max(revealFrames, 1);
+
+  const reveal = interpolate(frame, [startF, startF + revealSpan], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: animation === "typewriter" ? EASE.linear : EASE.out,

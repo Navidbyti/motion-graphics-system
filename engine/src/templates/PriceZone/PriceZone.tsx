@@ -44,7 +44,11 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
-  const { px, isVertical, dir, textStart } = useLayout({ scale, direction });
+  const { px, isVertical, dir, textStart } = useLayout({
+    scale,
+    direction,
+    text: `${ticker} ${subtitle}`,
+  });
 
   const b = useTheme(brand, theme);
   const { palette, font } = b;

@@ -132,7 +132,12 @@ export const scale = () =>
  * this for free.
  */
 export const direction = () =>
-  z.enum(["ltr", "rtl"]).describe("Text direction. Use rtl for Persian or Arabic");
+  z
+    .enum(["auto", "ltr", "rtl"])
+    .describe(
+      "Text direction. Auto detects Persian and Arabic from the text itself — " +
+        "only override it for mixed-language lines",
+    );
 
 /**
  * Fields every template carries, so the bottom of the props panel is always

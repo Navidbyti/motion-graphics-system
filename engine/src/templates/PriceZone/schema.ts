@@ -102,7 +102,7 @@ export const priceZoneDefaults: PriceZoneProps = {
   showAxis: true,
   showLast: true,
   scale: 1,
-  direction: "ltr",
+  direction: "auto",
   speed: 1,
 };
 

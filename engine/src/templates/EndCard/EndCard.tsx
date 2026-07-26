@@ -36,7 +36,7 @@ export const EndCard: React.FC<EndCardProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const { px, dir, textStart } = useLayout({ scale, direction });
+  const { px, dir, textStart } = useLayout({ scale, direction, text });
 
   const b = useTheme(brand, theme);
   const { palette, font } = b;

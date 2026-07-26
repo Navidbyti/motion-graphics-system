@@ -47,7 +47,11 @@ export const LineChart: React.FC<LineChartProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
-  const { px, isVertical, dir, textStart } = useLayout({ scale, direction });
+  const { px, isVertical, dir, textStart } = useLayout({
+    scale,
+    direction,
+    text: `${title} ${subtitle}`,
+  });
 
   const b = useTheme(brand, theme);
   const { palette, font } = b;

@@ -18,6 +18,40 @@ import { useVideoConfig } from "remotion";
 
 export type Direction = "ltr" | "rtl";
 
+/** What the editor picks. "auto" reads the script off the text itself. */
+export type DirectionSetting = Direction | "auto";
+
+/**
+ * Characters that only appear in right-to-left scripts: Hebrew, Arabic (which
+ * Persian is written in), Syriac, Thaana, and the Arabic presentation forms.
+ * Digits and punctuation are deliberately absent — they occur in both, so they
+ * say nothing about which way a line runs.
+ */
+const RTL_CHARS =
+  /[֐-׿؀-ۿ܀-ݏހ-޿ࢠ-ࣿיִ-﷿ﹰ-﻿]/;
+
+/**
+ * Detect direction from content.
+ *
+ * This exists because the alternative is worse than it sounds. With a manual
+ * toggle, typing Persian into a template left at its default renders every line
+ * in left-to-right order — the words come out reversed, aligned to the wrong
+ * edge, with the bubble tail on the wrong side. Nothing errors; it just reads
+ * as gibberish to anyone who can read it, and the editor has no reason to
+ * suspect a field called "direction" that he never touched.
+ *
+ * The toggle stays for the mixed cases the heuristic can't win: a Persian
+ * sentence containing a long English quote, or the reverse.
+ */
+export const detectDirection = (text?: string): Direction =>
+  text && RTL_CHARS.test(text) ? "rtl" : "ltr";
+
+/** Resolve the editor's choice against the actual text. */
+export const resolveDirection = (
+  setting: DirectionSetting | undefined,
+  text?: string,
+): Direction => (!setting || setting === "auto" ? detectDirection(text) : setting);
+
 export type Layout = {
   width: number;
   height: number;
@@ -45,11 +79,16 @@ export type Layout = {
 
 export const useLayout = (opts?: {
   scale?: number;
-  direction?: Direction;
+  direction?: DirectionSetting;
+  /**
+   * The template's own copy. Only read when `direction` is "auto" (or unset),
+   * so a template that passes nothing behaves exactly as before.
+   */
+  text?: string;
 }): Layout => {
   const { width, height } = useVideoConfig();
   const scale = opts?.scale ?? 1;
-  const dir = opts?.direction ?? "ltr";
+  const dir = resolveDirection(opts?.direction, opts?.text);
   const isRTL = dir === "rtl";
   const aspect = width / height;
 

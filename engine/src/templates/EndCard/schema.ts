@@ -26,7 +26,7 @@ export const endCardDefaults: EndCardProps = {
   showMark: true,
   scrim: true,
   scale: 1,
-  direction: "ltr",
+  direction: "auto",
   speed: 1,
 };
 

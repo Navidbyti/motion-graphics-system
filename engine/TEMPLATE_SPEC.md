@@ -136,8 +136,24 @@ system rather than a pile of separate videos.
 Never compute `px()` inline.
 
 ```ts
-const { px, isVertical, isRTL, start, textStart } = useLayout({ scale, direction });
+const { px, isVertical, isRTL, start, textStart } = useLayout({
+  scale,
+  direction,
+  text, // the template's own copy — resolves `direction: "auto"`
+});
 ```
+
+- **MUST** pass the template's main text to `useLayout`. `direction` defaults to
+  `"auto"`, which detects Persian and Arabic from the content. Without the text
+  it silently falls back to left-to-right.
+
+  This is not a convenience. A manual toggle means Persian typed into a template
+  left at its default renders with reversed word order, the wrong text
+  alignment, and the bubble tail on the wrong side — while nothing errors. It
+  reads as gibberish to anyone who can read it, and the editor has no reason to
+  suspect a field he never touched. *(Confirmed: the editor typed
+  `عالیه همینو ادامه بده` and got it back mirrored.)* The explicit `ltr`/`rtl`
+  options remain for mixed-language lines the heuristic can't win.
 
 - **MUST** take `px` from `useLayout` rather than writing the scaling expression.
   The rule (scale by the shorter side, times the editor's `scale`) is subtle and
