@@ -13,13 +13,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import {
-  PRESETS,
-  getBundle,
-  renderTemplate,
-  renderThumbnail,
-  resolveBrowser,
-} from "../../engine/scripts/render-service.mjs";
+import { pathToFileURL } from "node:url";
 import { MODEL, generateProps, hasApiKey } from "./gemini.mjs";
 import { proxyInUse } from "./http.mjs";
 
@@ -41,6 +35,22 @@ const PROJECT_ROOT = path.resolve(here, "..", "..");
  * Where finished files land. The editor points Premiere's media browser here
  * once and never thinks about paths again.
  */
+/**
+ * The render service is imported dynamically, by absolute path.
+ *
+ * A static relative import breaks in the packaged app: `server/` lives inside
+ * app.asar while `engine/` is unpacked beside it, so "../../engine/..." points
+ * at a directory that doesn't exist. It works perfectly in dev, which is why
+ * this only surfaced when the first real .exe was launched.
+ */
+const ENGINE_ROOT =
+  process.env.MG_ENGINE_ROOT ?? path.resolve(here, "..", "..", "engine");
+
+const { PRESETS, getBundle, renderTemplate, renderThumbnail, resolveBrowser } =
+  await import(
+    pathToFileURL(path.join(ENGINE_ROOT, "scripts", "render-service.mjs")).href
+  );
+
 const WATCH_FOLDER =
   process.env.MG_WATCH_FOLDER ?? path.join(PROJECT_ROOT, "exports");
 const THUMB_FOLDER = path.join(PROJECT_ROOT, ".thumbnails");

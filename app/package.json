@@ -10,8 +10,9 @@
     "build": "vite build",
     "dev:electron": "electron .",
     "electron": "concurrently -n server,ui,shell -c cyan,magenta,green \"npm:dev:server\" \"npm:dev:ui\" \"npm:dev:electron\"",
-    "pack": "npm run build && electron-builder --dir",
-    "release": "npm run build && electron-builder --publish always"
+    "pack": "npm run build && npm run stage:engine && electron-builder --dir",
+    "release": "npm run build && npm run stage:engine && electron-builder --publish always",
+    "stage:engine": "node scripts/stage-engine.mjs"
   },
   "dependencies": {
     "@remotion/player": "4.0.499",
@@ -30,7 +31,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.0",
     "concurrently": "9.1.2",
-    "electron": "^33.4.11",
+    "electron": "33.4.11",
     "electron-builder": "^25.1.8",
     "typescript": "5.9.3",
     "vite": "7.1.5"
@@ -53,13 +54,8 @@
     ],
     "extraResources": [
       {
-        "from": "../engine",
-        "to": "app.asar.unpacked/engine",
-        "filter": [
-          "**/*",
-          "!out/**",
-          "!node_modules/.cache/**"
-        ]
+        "from": "build/engine",
+        "to": "app.asar.unpacked/engine"
       }
     ],
     "asar": true,
@@ -85,6 +81,12 @@
         "owner": "Navidbyti",
         "repo": "motion-graphics-system"
       }
-    ]
+    ],
+    "electronVersion": "33.4.11",
+    "nodeGypRebuild": false
+  },
+  "author": {
+    "name": "Hoteldebit",
+    "email": "nbayati22@gmail.com"
   }
 }
