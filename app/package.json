@@ -43,7 +43,7 @@
     "productName": "Motion Graphics",
     "directories": {
       "output": "../release",
-      "buildResources": "build"
+      "buildResources": "build-resources"
     },
     "files": [
       "dist/**/*",
