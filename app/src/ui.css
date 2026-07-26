@@ -122,8 +122,30 @@ input[type="range"] { padding: 0; }
 }
 .stage-canvas {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 24px; min-height: 0;
+  padding: 24px;
+  /* Both are required: without them a flex child refuses to shrink below its
+     content, so a tall vertical preview overflowed the stage instead of
+     scaling down. */
+  min-height: 0; min-width: 0;
+  overflow: hidden;
 }
+/*
+   Zoomed past fit, the canvas scrolls rather than squashing the preview.
+   Centring is done with `margin: auto` on the child, NOT align/justify-content:
+   a flex container centring an oversized child clips the overflow on both
+   sides and makes it unreachable — the scrollbars appear but move nothing.
+*/
+.stage-canvas.zoomed {
+  overflow: auto;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.stage-canvas.zoomed .player-frame { margin: auto; }
+
+.player-frame { display: flex; align-items: center; justify-content: center; }
+
+.zoom { align-items: center; }
+.zoom-level { min-width: 34px; text-align: center; }
 
 .btn-group { display: flex; gap: 6px; }
 
@@ -193,3 +215,12 @@ td input { padding: 4px 6px; }
   display: grid; gap: 12px;
 }
 .export p { margin: 0; }
+
+/* Backdrop picker — preview only, never part of an export. */
+.backdrop-picker select { width: auto; min-width: 150px; }
+.upload-btn {
+  display: inline-flex; align-items: center;
+  padding: 5px 12px; font-size: 13px; cursor: pointer;
+  background: var(--raised); border: 1px solid var(--line); border-radius: 8px;
+}
+.upload-btn input { display: none; }

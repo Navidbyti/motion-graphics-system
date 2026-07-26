@@ -13,7 +13,15 @@ import { compositionId, registry, type FormatName } from "@engine/registry";
 import { SchemaForm } from "./SchemaForm";
 import { Settings, loadCustomTheme } from "./Settings";
 
-type Backdrop = "dark" | "light" | "checker";
+type Backdrop =
+  | "checker"
+  | "dark"
+  | "light"
+  | "bright"
+  | "skin"
+  | "centre"
+  | "busy"
+  | "custom";
 type Health = {
   ok: boolean;
   browser: string | null;
@@ -120,15 +128,61 @@ const SyncButton: React.FC = () => {
   );
 };
 
+/**
+ * Preview backdrops. These live on the stage container, OUTSIDE the <Player>,
+ * so they can never reach a render — the exporter only ever sees the template.
+ *
+ * The generated ones aren't trying to look like photographs. What actually
+ * breaks an overlay is luminance and busyness, not whether a person is in
+ * shot: white text dies on a blown-out window, a centred subject swallows a
+ * centred caption, and a busy scene destroys thin type. Each of these
+ * reproduces one of those failure conditions on demand. For a genuine check
+ * against real material, drop in an actual frame with Custom.
+ */
 const BACKDROPS: Record<Backdrop, React.CSSProperties> = {
   dark: { background: "#0B0F17" },
   light: { background: "#F2F5F9" },
-  // The honest test: an overlay has to survive both extremes at once.
+  // Both extremes at once — the fastest way to catch an invisible overlay.
   checker: {
     background:
       "repeating-conic-gradient(#d6dbe3 0% 25%, #ffffff 0% 50%) 50% / 48px 48px",
   },
+  // Blown-out window light behind a subject. Kills white text.
+  bright: {
+    background:
+      "radial-gradient(circle at 50% 32%, #ffffff 0%, #f3ede2 42%, #d9cbb4 100%)",
+  },
+  // Warm mid-tone, the usual UGC selfie lighting.
+  skin: {
+    background:
+      "radial-gradient(circle at 50% 38%, #d8a882 0%, #b07d5c 45%, #5c3b2a 100%)",
+  },
+  // Centred subject: bright middle, falling off to dark edges. Anything
+  // centred competes with the face.
+  centre: {
+    background:
+      "radial-gradient(ellipse at 50% 42%, #e8e2d8 0%, #8d857a 38%, #23201d 78%)",
+  },
+  // Busy, high-contrast scene. Thin type and low-opacity panels fail here.
+  busy: {
+    background:
+      "repeating-linear-gradient(115deg, #1c3f5e 0 40px, #d94f2b 40px 80px, #f2c14e 80px 120px, #2f7a4f 120px 160px)",
+  },
+  custom: {},
 };
+
+const BACKDROP_LABELS: Record<Backdrop, string> = {
+  checker: "Checkerboard",
+  dark: "Dark footage",
+  light: "Light footage",
+  bright: "Blown-out light",
+  skin: "UGC / warm skin",
+  centre: "Centred subject",
+  busy: "Busy scene",
+  custom: "Custom image…",
+};
+
+const CUSTOM_BACKDROP_KEY = "mg.customBackdrop";
 
 export const App: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -230,6 +284,55 @@ const EditScreen: React.FC<{
   );
   const [format, setFormat] = useState<FormatName>("vertical");
   const [backdrop, setBackdrop] = useState<Backdrop>("checker");
+  /**
+   * "fit" scales the preview to the available space; a number is an explicit
+   * zoom where the canvas scrolls. Vertical compositions are much taller than
+   * the stage, and without a fit mode the player overflowed instead of
+   * shrinking — flex children don't shrink below their content unless told to.
+   */
+  const [zoom, setZoom] = useState<"fit" | number>("fit");
+
+  /**
+   * A frame from the editor's own footage, kept between sessions. Stored as a
+   * data URL like the custom theme — it's a preview aid, not project data, and
+   * it never travels anywhere near a render.
+   */
+  const [customBackdrop, setCustomBackdrop] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(CUSTOM_BACKDROP_KEY);
+    } catch {
+      return null;
+    }
+  });
+
+  const onBackdropFile = async (file?: File) => {
+    if (!file) return;
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    const url = `data:${file.type || "image/jpeg"};base64,${btoa(binary)}`;
+    setCustomBackdrop(url);
+    try {
+      localStorage.setItem(CUSTOM_BACKDROP_KEY, url);
+    } catch {
+      // A large image can exceed the storage quota; it still works this
+      // session, it just won't persist.
+    }
+  };
+
+  const backdropStyle: React.CSSProperties =
+    backdrop === "custom" && customBackdrop
+      ? {
+          backgroundImage: `url(${customBackdrop})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }
+      : backdrop === "custom"
+        ? BACKDROPS.checker
+        : BACKDROPS[backdrop];
   const [preset, setPreset] = useState("overlay");
   const [job, setJob] = useState<{
     id: string;
@@ -303,32 +406,101 @@ const EditScreen: React.FC<{
             ))}
           </div>
 
-          <div className="btn-group">
-            {(["dark", "light", "checker"] as Backdrop[]).map((b) => (
-              <button
-                key={b}
-                className={b === backdrop ? "active" : ""}
-                onClick={() => setBackdrop(b)}
-                title="Overlays must stay readable on light and dark footage"
-              >
-                {b}
-              </button>
-            ))}
+          <div className="btn-group backdrop-picker">
+            <select
+              value={backdrop}
+              onChange={(e) => setBackdrop(e.target.value as Backdrop)}
+              title="Preview only — never included in the export"
+            >
+              {(Object.keys(BACKDROP_LABELS) as Backdrop[]).map((b) => (
+                <option key={b} value={b}>
+                  {BACKDROP_LABELS[b]}
+                </option>
+              ))}
+            </select>
+            {backdrop === "custom" ? (
+              <label className="upload-btn" title="Use a frame from your own footage">
+                {customBackdrop ? "Change" : "Choose…"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => onBackdropFile(e.target.files?.[0])}
+                />
+              </label>
+            ) : null}
+          </div>
+
+          <div className="btn-group zoom">
+            <button
+              className={zoom === "fit" ? "active" : ""}
+              onClick={() => setZoom("fit")}
+              title="Scale the preview to fit the window"
+            >
+              Fit
+            </button>
+            <button
+              onClick={() =>
+                setZoom((z) => Math.max(0.25, (z === "fit" ? 1 : z) - 0.25))
+              }
+              title="Zoom out"
+            >
+              −
+            </button>
+            <span className="muted small zoom-level">
+              {zoom === "fit" ? "fit" : `${Math.round(zoom * 100)}%`}
+            </span>
+            <button
+              onClick={() =>
+                setZoom((z) => Math.min(3, (z === "fit" ? 1 : z) + 0.25))
+              }
+              title="Zoom in"
+            >
+              +
+            </button>
           </div>
         </div>
 
-        <div className="stage-canvas" style={BACKDROPS[backdrop]}>
-          <Player
-            component={template.component}
-            inputProps={renderProps}
-            durationInFrames={duration}
-            fps={FPS}
-            compositionWidth={formats[format].width}
-            compositionHeight={formats[format].height}
-            style={{ maxWidth: "100%", maxHeight: "100%" }}
-            controls
-            loop
-          />
+        <div
+          className={`stage-canvas${zoom === "fit" ? "" : " zoomed"}`}
+          style={backdropStyle}
+        >
+          {/*
+            The wrapper owns the sizing, not the Player.
+            In fit mode `aspect-ratio` plus max-width/height lets the browser
+            shrink it to whatever space is left — which is what wasn't
+            happening before, so a 1080×1920 composition simply overflowed the
+            stage. When zoomed, an explicit pixel size makes the canvas scroll.
+          */}
+          <div
+            className="player-frame"
+            style={
+              zoom === "fit"
+                ? {
+                    aspectRatio: `${formats[format].width} / ${formats[format].height}`,
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    width: "100%",
+                    height: "100%",
+                  }
+                : {
+                    width: formats[format].width * zoom * 0.5,
+                    height: formats[format].height * zoom * 0.5,
+                    flexShrink: 0,
+                  }
+            }
+          >
+            <Player
+              component={template.component}
+              inputProps={renderProps}
+              durationInFrames={duration}
+              fps={FPS}
+              compositionWidth={formats[format].width}
+              compositionHeight={formats[format].height}
+              style={{ width: "100%", height: "100%" }}
+              controls
+              loop
+            />
+          </div>
         </div>
       </section>
 
