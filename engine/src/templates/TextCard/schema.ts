@@ -24,6 +24,7 @@ export const textCardSchema = withCommon({
     .enum([
       "native",
       "glass",
+      "whiteGlass",
       "clay",
       "pill",
       "brutalist",
@@ -33,10 +34,10 @@ export const textCardSchema = withCommon({
       "none",
     ])
     .describe(
-      "Native = iMessage-style bubble, Glass = frosted panel, Clay = soft 3D " +
-        "bubble, Pill = minimal rounded tag, Brutalist = hard box with offset " +
-        "shadow, Solid/Gradient = brand card, Scrim = darkened footage, None = " +
-        "text only",
+      "Native = iMessage-style bubble, Glass = dark frosted glass with edge " +
+        "light, White glass = bright frosted panel, Clay = soft 3D bubble, " +
+        "Pill = minimal rounded tag, Brutalist = hard box with offset shadow, " +
+        "Solid/Gradient = brand card, Scrim = darkened footage, None = text only",
     ),
 
   typing: toggle(

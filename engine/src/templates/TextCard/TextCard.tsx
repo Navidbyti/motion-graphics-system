@@ -204,10 +204,68 @@ export const TextCard: React.FC<TextCardProps> = ({
           bubbleSpring: true,
         };
 
-      /* Bright frosted fill + luminous inner border. `saturate` is what makes
-         it read as glass rather than fog: it pulls the colour through the
-         blur instead of washing it out. */
-      case "glass":
+      /*
+        Real glass, the Apple way.
+
+        The previous version was a 65%-white fill and a flat border, and in an
+        alpha export — where backdrop-filter has nothing behind it to blur —
+        that is all it could ever be: a low-opacity white blob. So the optics
+        are built rather than borrowed, and every part of them survives a
+        transparent render:
+
+        - a fill that is brighter at the top and nearly clear at the bottom,
+          because glass gathers light from above rather than sitting at one
+          uniform opacity;
+        - a rim that is bright along the top-left, vanishes through the middle
+          and returns faintly at the bottom-right. That travelling edge light is
+          the single detail that separates glass from a translucent rectangle,
+          and it needs a gradient *border* — hence the padding-box/border-box
+          pair with a transparent border;
+        - a hard specular line just inside the top edge, and a dark line inside
+          the bottom, which together give the pane thickness;
+        - a wide, deep ambient shadow so it floats above the footage instead of
+          lying on it.
+
+        The blur and saturate still apply in preview and full-frame exports.
+        They are the bonus, not the effect.
+      */
+      case "glass": {
+        const glassTint = palette.paper;
+        return {
+          style: {
+            background: [
+              `linear-gradient(175deg, ${glassTint}30 0%, ${glassTint}17 42%, ${glassTint}0D 100%) padding-box`,
+              `linear-gradient(145deg, ${glassTint}F2 0%, ${glassTint}40 26%, ${glassTint}0A 52%, ${glassTint}26 78%, ${glassTint}8C 100%) border-box`,
+            ].join(", "),
+            border: `${px(1.6)}px solid transparent`,
+            backdropFilter: `blur(${px(30)}px) saturate(190%) brightness(106%)`,
+            WebkitBackdropFilter: `blur(${px(30)}px) saturate(190%) brightness(106%)`,
+            boxShadow: [
+              `inset 0 ${px(1.5)}px 0 ${glassTint}5E`,
+              `inset 0 ${px(-1.5)}px 0 rgba(0,0,0,0.22)`,
+              `inset 0 ${px(30)}px ${px(40)}px ${px(-26)}px ${glassTint}38`,
+              `0 ${px(28)}px ${px(56)}px ${px(-14)}px rgba(0,0,0,0.48)`,
+            ].join(", "),
+          },
+          text: palette.textPrimary,
+          corner: px(40),
+          pad: [0.68, 0.92],
+          typography: {
+            letterSpacing: px(-fontSize * 0.02),
+            lineHeight: 1.3,
+            // The fill is deliberately thin, so the glyphs carry their own
+            // separation from whatever footage shows through.
+            textShadow: `0 ${px(2)}px ${px(10)}px rgba(0,0,0,0.4)`,
+          },
+          emphasis: "accent",
+          bubbleSpring: true,
+        };
+      }
+
+      /* The bright frosted panel. Reads as white glass over dark footage and
+         needs dark text — it is the light counterpart to `glass`, not a
+         variation of it. */
+      case "whiteGlass":
         return {
           style: {
             background: `${palette.paper}A6`,
@@ -458,37 +516,93 @@ export const TextCard: React.FC<TextCardProps> = ({
 
     if (animation === "typewriter") {
       /*
-        Clipped, not sliced. Slicing the string mid-word destroys Arabic-script
-        shaping — Persian letters change form based on their neighbours, so a
-        partially-typed word renders as different letters entirely. Clipping
-        keeps the text correctly shaped and simply uncovers it.
+        Clipped per WORD, not across the block.
+
+        Two constraints pull against each other here. The reveal can't slice the
+        string, because slicing mid-word destroys Arabic-script shaping —
+        Persian letters change form based on their neighbours, so a half-typed
+        word renders as different letters entirely. But clipping the whole block
+        with one inset, which is what this did, cuts a single vertical band
+        through every line at once: on one line that looks exactly like typing,
+        and on three it wipes "someon|e" and "ac|tually" simultaneously.
+
+        So each word carries its own clip. Words already typed are plain, the
+        word being typed is clipped from its own left edge, and the rest are
+        `visibility: hidden` — hidden but still occupying space, so the
+        paragraph never reflows as it fills in.
       */
+      const total = Math.max(chars, 1);
+      const typed = reveal * total;
+
+      // Character offsets per word, counting the space that follows each.
+      const bounds: [number, number][] = [];
+      let cursor = 0;
+      for (const w of words) {
+        bounds.push([cursor, cursor + w.length]);
+        cursor += w.length + 1;
+      }
+      // The word currently being typed; -1 once the whole string is out.
+      const active = bounds.findIndex(([, end]) => typed < end);
+
       return (
-        <div style={{ position: "relative", color: textColour, direction: dir }}>
-          <span
-            style={{
-              display: "inline-block",
-              clipPath: isRTL
-                ? `inset(0 0 0 ${(1 - reveal) * 100}%)`
-                : `inset(0 ${(1 - reveal) * 100}% 0 0)`,
-            }}
-          >
-            {text}
-          </span>
-          {/* Caret rides the reveal edge and disappears once typing finishes. */}
-          {reveal < 1 ? (
-            <span
-              style={{
-                position: "absolute",
-                top: "8%",
-                bottom: "8%",
-                [isRTL ? "right" : "left"]: `${reveal * 100}%`,
-                width: px(4),
-                background: palette.accent,
-                opacity: Math.round(frame / 6) % 2 ? 1 : 0.25,
-              }}
-            />
-          ) : null}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: background === "pill" ? "nowrap" : "wrap",
+            justifyContent: centred ? "center" : "flex-start",
+            columnGap: px(space.sm + 6),
+            rowGap: px(space.xs),
+            direction: dir,
+          }}
+        >
+          {words.map((word, i) => {
+            const [start, end] = bounds[i];
+            const p =
+              typed >= end
+                ? 1
+                : Math.min(Math.max((typed - start) / Math.max(word.length, 1), 0), 1);
+            const hit = emphasised.length > 0 && normalise(word) === emphasised;
+
+            return (
+              <span
+                key={`${word}-${i}`}
+                style={{
+                  position: "relative",
+                  display: "inline-block",
+                  flexShrink: 0,
+                  // Not-yet-typed words hold their space so nothing reflows.
+                  visibility: active >= 0 && i > active ? "hidden" : "visible",
+                  color: textColour,
+                  ...(hit ? emphasisStyle : null),
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    clipPath: isRTL
+                      ? `inset(0 0 0 ${(1 - p) * 100}%)`
+                      : `inset(0 ${(1 - p) * 100}% 0 0)`,
+                  }}
+                >
+                  {word}
+                </span>
+                {/* The caret rides this word's edge, so it lands on the right line. */}
+                {i === active ? (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "6%",
+                      bottom: "6%",
+                      [isRTL ? "right" : "left"]: `${p * 100}%`,
+                      width: px(4),
+                      background: palette.accent,
+                      opacity: Math.round(frame / 6) % 2 ? 1 : 0.25,
+                    }}
+                  />
+                ) : null}
+              </span>
+            );
+          })}
         </div>
       );
     }
