@@ -75,8 +75,13 @@ export const CandleChart: React.FC<CandleChartProps> = ({
   const highs = candles.map((c) => c.high);
   const rawLo = Math.min(...lows);
   const rawHi = Math.max(...highs);
-  // Headroom so the extremes never touch the chart edge.
-  const pad = (rawHi - rawLo) * 0.14 || 1;
+  /**
+   * Headroom so the extremes never touch the chart edge — but proportional to
+   * how much vertical room there actually is. A fixed 14% is fine in a tall
+   * frame and wasteful in a wide one, where the plot is already short: the
+   * candles end up squashed into a thin band with dead space above and below.
+   */
+  const pad = (rawHi - rawLo) * (height > width ? 0.14 : 0.07) || 1;
   const lo = rawLo - pad;
   const hi = rawHi + pad;
 
@@ -122,8 +127,6 @@ export const CandleChart: React.FC<CandleChartProps> = ({
   /* ---------------- candle geometry ---------------- */
 
   const slot = 100 / candles.length;
-  const bodyW = slot * 0.58;
-  const wickW = Math.max(slot * 0.1, 0.35);
 
   /**
    * Corner radius has to be relative to the candle, not to the frame.
@@ -131,8 +134,34 @@ export const CandleChart: React.FC<CandleChartProps> = ({
    * rounds bodies into pills and turns thin wicks into horizontal blobs — the
    * chart stops reading as candles at all.
    */
-  const plotW = width - 2 * px(safe.x) - 2 * px(space.xl) - px(170);
-  const bodyRadius = Math.min(px(radius.sm), ((bodyW / 100) * plotW) / 3);
+  // Must follow the card's actual width, not the frame's — the card is capped
+  // in landscape, so deriving from the frame overestimates and the radii come
+  // out too large for the candles they're applied to.
+  const cardW = Math.min(width - 2 * px(safe.x), isVertical ? Infinity : height * 1.55);
+  const plotW = cardW - 2 * px(space.xl) - px(170);
+
+  /**
+   * Cap the body width in pixels, not just as a share of its slot.
+   *
+   * With few candles across a wide plot, 58% of the slot is a very fat bar —
+   * and because the price range is compressed into a short plot, the body ends
+   * up wider than it is tall. It stops reading as a candle and starts reading
+   * as a pill. A real candle is taller than it is wide, so cap the width and
+   * let the spacing grow instead.
+   */
+  const maxBodyPx = px(46);
+  const bodyW = Math.min(slot * 0.58, (maxBodyPx / plotW) * 100);
+
+  /**
+   * The wick is sized from the BODY, not from the slot.
+   *
+   * Slot-relative made it scale with the gap between candles, so at low counts
+   * the wick came out nearly as wide as the body and the candle read as a bar
+   * with knobs on it. A wick is a fixed fraction of its own candle.
+   */
+  const wickW = Math.max(bodyW * 0.16, 0.2);
+
+  const bodyRadius = Math.min(px(radius.sm), ((bodyW / 100) * plotW) / 4);
   const wickRadius = ((wickW / 100) * plotW) / 2;
 
   /**
@@ -208,10 +237,18 @@ export const CandleChart: React.FC<CandleChartProps> = ({
         style={{
           width: "100%",
           height: "100%",
-          // Vertical frames leave a very tall slot; letting the card fill it
-          // stretches the plot into something that reads as a graph rather than
-          // a graphic. Cap the aspect and let it centre in the leftover space.
+          /**
+           * Cap the card's aspect in BOTH directions and let it centre in the
+           * leftover space.
+           *
+           * Vertical frames leave a very tall slot and wide frames leave a very
+           * wide one; filling either stretches the plot into something that
+           * reads as a graph rather than a graphic. Landscape was the worse of
+           * the two — a 2:1 card makes the candles short and stubby relative to
+           * their width, so they stop reading as candles.
+           */
           maxHeight: isVertical ? width * 1.3 : "100%",
+          maxWidth: isVertical ? "100%" : height * 1.55,
           display: "flex",
           flexDirection: "column",
           gap: px(space.lg),

@@ -65,6 +65,42 @@ const TableEditor: React.FC<{
     onChange(parsed as Record<string, number>[]);
   };
 
+  /**
+   * A new row continues the series rather than duplicating the last one.
+   *
+   * Cloning the final row produces a flat candle with zero range, which renders
+   * as an invisible sliver — it looks like "Add" did nothing. Carrying the last
+   * value forward with a small step gives something visible that the editor can
+   * then correct.
+   */
+  const extendFrom = (rows: Record<string, number>[]): Record<string, number> => {
+    const last = rows[rows.length - 1] ?? {};
+    const keys = columns.map((c) => c.key);
+    // OHLC-shaped data continues from the previous close.
+    if (["open", "high", "low", "close"].every((k) => keys.includes(k))) {
+      const base = last.close ?? 100;
+      const step = Math.max(Math.abs(base) * 0.01, 0.5);
+      const close = base + step;
+      return {
+        open: base,
+        high: Math.max(base, close) + step,
+        low: Math.min(base, close) - step,
+        close,
+      };
+    }
+    return Object.fromEntries(keys.map((k) => [k, last[k] ?? 0]));
+  };
+
+  /** Grow or trim the array to an exact length — beats clicking Add 12 times. */
+  const setCount = (nextRaw: number) => {
+    const next = Math.max(2, Math.min(60, Math.round(nextRaw) || 2));
+    if (next === value.length) return;
+    if (next < value.length) return onChange(value.slice(0, next));
+    const rows = [...value];
+    while (rows.length < next) rows.push(extendFrom(rows));
+    onChange(rows);
+  };
+
   const setCell = (rowIndex: number, key: string, raw: string) => {
     const next = value.map((row, i) =>
       i === rowIndex ? { ...row, [key]: Number(raw) } : row,
@@ -75,13 +111,23 @@ const TableEditor: React.FC<{
   return (
     <div className="table-editor">
       <div className="row-between">
-        <span className="muted">{value.length} rows</span>
+        <label className="count">
+          <span className="muted">Rows</span>
+          <input
+            type="number"
+            min={2}
+            max={60}
+            value={value.length}
+            onChange={(e) => setCount(Number(e.target.value))}
+          />
+        </label>
         <div className="btn-group">
           <button onClick={() => setPasteOpen((o) => !o)}>Paste from sheet</button>
           <button
-            onClick={() => onChange([...value, { ...value[value.length - 1] }])}
+            onClick={() => onChange([...value, extendFrom(value)])}
+            disabled={value.length >= 60}
           >
-            Add row
+            Add
           </button>
           <button
             onClick={() => onChange(value.slice(0, -1))}

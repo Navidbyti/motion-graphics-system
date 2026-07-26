@@ -156,6 +156,8 @@ input[type="range"] { padding: 0; }
 }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .row-between button { padding: 4px 8px; font-size: 12px; }
+.count { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.count input { width: 62px; padding: 4px 6px; }
 
 .paste { display: grid; gap: 6px; }
 .paste textarea { font-family: ui-monospace, monospace; font-size: 12px; }
