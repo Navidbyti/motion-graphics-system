@@ -134,7 +134,12 @@ app.get("/api/job/:id", (req, res) => {
 
 const PORT = process.env.MG_PORT ?? 3131;
 
-app.listen(PORT, async () => {
+/**
+ * Exported so Electron can close it during shutdown. A listening socket keeps
+ * handles open, and the NSIS installer refuses to run while any part of the app
+ * is still alive.
+ */
+export const server = app.listen(PORT, async () => {
   console.log(`render server  http://localhost:${PORT}`);
   console.log(`watch folder   ${WATCH_FOLDER}`);
   console.log(`browser        ${resolveBrowser() ?? "NONE FOUND"}`);

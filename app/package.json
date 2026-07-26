@@ -75,7 +75,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Motion Graphics"
+      "shortcutName": "Motion Graphics",
+      "allowElevation": true,
+      "deleteAppDataOnUninstall": false
     },
     "publish": [
       {

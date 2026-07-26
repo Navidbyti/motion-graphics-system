@@ -88,6 +88,35 @@ const resolveWatchFolder = () => {
 let mainWindow = null;
 /** Resolved at boot; handed to the renderer so it can reach the right server. */
 let apiPort = 3131;
+/** The express server, kept so shutdown can close its listening socket. */
+let renderServer = null;
+
+/**
+ * Shut down hard and fast.
+ *
+ * The NSIS installer asks the app to close politely and aborts with "Motion
+ * Graphics cannot be closed" if anything survives. Electron's helper processes
+ * (GPU, utility) have no message loop and ignore a polite close outright — one
+ * of them was refusing termination and blocking every update.
+ *
+ * So: release what we own, then call app.exit(), which terminates the whole
+ * process tree immediately instead of negotiating with it. There is nothing to
+ * save on the way out — exports are already written to disk, and the theme is
+ * persisted as it's typed.
+ */
+const shutdownNow = () => {
+  try {
+    renderServer?.close();
+  } catch {
+    /* already closed */
+  }
+  try {
+    mainWindow?.destroy();
+  } catch {
+    /* already gone */
+  }
+  app.exit(0);
+};
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -209,14 +238,17 @@ if (!app.requestSingleInstanceLock()) {
     // Dynamic import so the environment above is already in place — see the
     // note on loadEnvironment().
     if (!isDev) {
-      await import("../server/index.mjs");
+      const mod = await import("../server/index.mjs");
+      renderServer = mod.server ?? null;
     }
 
     createWindow();
     setupUpdates();
   });
 
-  app.on("window-all-closed", () => app.quit());
+  // Closing the window closes the app — and closes it *hard*, so a stale
+  // helper process can never block a later install.
+  app.on("window-all-closed", shutdownNow);
 }
 
 /* ------------------------------------------------------------------ *
@@ -236,7 +268,14 @@ ipcMain.handle("update:check", async () => {
 });
 
 ipcMain.handle("update:install", () => {
-  autoUpdater.quitAndInstall();
+  /**
+   * `quitAndInstall` runs the installer and then asks the app to quit — but the
+   * installer starts checking immediately, so anything slow to die makes it
+   * abort with "Motion Graphics cannot be closed". The forced exit shortly
+   * after guarantees nothing is left for it to trip over.
+   */
+  autoUpdater.quitAndInstall(false, true);
+  setTimeout(shutdownNow, 400);
 });
 
 ipcMain.handle("shell:openFolder", (_event, folder) => shell.openPath(folder));
