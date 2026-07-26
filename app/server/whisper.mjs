@@ -299,12 +299,107 @@ const parseSrt = (srt) => {
   return cues;
 };
 
+/* ------------------------------------------------------------------ *
+ * Premiere markers
+ * ------------------------------------------------------------------ */
+
+const xmlEscape = (s) =>
+  String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
 /**
- * Premiere imports .srt as captions directly — that path is reliable and is
- * what the subtitle file is for. Markers are a different matter: Premiere has
- * no native marker-import format, so the CSV here is written for the
- * marker-import extensions that expect one, and the plain text file is there so
- * the timings can always be read by eye. Neither is a substitute for the SRT.
+ * NTSC rates are stored as the next whole number plus an `ntsc` flag — there is
+ * no way to write 29.97 in a `<timebase>`, which only accepts an integer.
+ */
+const rateOf = (fps) => {
+  const ntsc = Math.abs(fps - Math.round(fps)) > 0.001;
+  return { timebase: Math.round(fps), ntsc: ntsc ? "TRUE" : "FALSE" };
+};
+
+/**
+ * FCP7 XML — the native way into Premiere.
+ *
+ * Premiere has never imported marker CSVs; that always needed a third-party
+ * panel. It does import FCP7 XML directly (File > Import), and honours
+ * `<marker>` elements on the sequence — so the markers arrive with no extension
+ * installed and no manual placement.
+ *
+ * Structure follows Apple's xmeml v4 as Premiere consumes it. It is fussier
+ * than it looks: `<in>` and `<out>` are FRAME NUMBERS rather than seconds or
+ * timecode, the sequence needs a rate and video format block or the import
+ * fails with a generic error, and marker elements must be children of
+ * `<sequence>`, after `<timecode>`.
+ */
+const toFcpXml = (cues, fps, name, { width = 1920, height = 1080 } = {}) => {
+  const { timebase, ntsc } = rateOf(fps);
+  const frames = (seconds) => Math.round(seconds * fps);
+  const last = cues[cues.length - 1];
+
+  const rate = `<rate><timebase>${timebase}</timebase><ntsc>${ntsc}</ntsc></rate>`;
+
+  const markers = cues
+    .map((c, i) => {
+      /*
+        A one-frame marker collapses to nothing on the timeline and becomes
+        impossible to grab, so every marker spans at least a frame. Whisper can
+        also emit a cue whose end equals its start on very short utterances.
+      */
+      const start = frames(c.start);
+      const end = Math.max(frames(c.end), start + 1);
+      return [
+        "\t\t<marker>",
+        `\t\t\t<comment>${xmlEscape(c.text)}</comment>`,
+        `\t\t\t<name>${xmlEscape(`${i + 1}. ${c.text.slice(0, 40)}`)}</name>`,
+        `\t\t\t<in>${start}</in>`,
+        `\t\t\t<out>${end}</out>`,
+        "\t\t</marker>",
+      ].join("\n");
+    })
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<xmeml version="4">
+	<sequence id="sequence-1">
+		<duration>${frames(last?.end ?? 0) + 1}</duration>
+		${rate}
+		<name>${xmlEscape(name)}</name>
+		<media>
+			<video>
+				<format>
+					<samplecharacteristics>
+						${rate}
+						<width>${width}</width>
+						<height>${height}</height>
+						<anamorphic>FALSE</anamorphic>
+						<pixelaspectratio>square</pixelaspectratio>
+						<fielddominance>none</fielddominance>
+						<colordepth>24</colordepth>
+					</samplecharacteristics>
+				</format>
+				<track>
+					<enabled>TRUE</enabled>
+					<locked>FALSE</locked>
+				</track>
+			</video>
+		</media>
+		<timecode>
+			${rate}
+			<string>00:00:00:00</string>
+			<frame>0</frame>
+			<displayformat>${ntsc === "TRUE" ? "DF" : "NDF"}</displayformat>
+		</timecode>
+${markers}
+	</sequence>
+</xmeml>
+`;
+};
+
+/**
+ * Kept alongside the XML for the marker-import panels that read a CSV, and
+ * because it opens in a spreadsheet when someone just wants the timings.
  */
 const toMarkerCsv = (cues, fps) =>
   [
@@ -395,17 +490,19 @@ export const transcribe = async ({
 
   const written = {
     srt: path.join(outputDir, `${safe}.srt`),
+    markersXml: path.join(outputDir, `${safe} markers.xml`),
     vtt: path.join(outputDir, `${safe}.vtt`),
     txt: path.join(outputDir, `${safe}.txt`),
-    markers: path.join(outputDir, `${safe} markers.csv`),
+    markersCsv: path.join(outputDir, `${safe} markers.csv`),
   };
 
   await writeFile(written.srt, srt, "utf8");
+  await writeFile(written.markersXml, toFcpXml(cues, fps, `${safe} — transcript`), "utf8");
   await writeFile(written.vtt, await readFile(`${stem}.vtt`, "utf8"), "utf8");
   await writeFile(written.txt, await readFile(`${stem}.txt`, "utf8"), "utf8");
   // BOM: Excel and several Premiere marker extensions read the CSV as the
   // system codepage otherwise, which mangles every Persian caption.
-  await writeFile(written.markers, "﻿" + toMarkerCsv(cues, fps), "utf8");
+  await writeFile(written.markersCsv, "﻿" + toMarkerCsv(cues, fps), "utf8");
 
   rmSync(work, { recursive: true, force: true });
 

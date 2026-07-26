@@ -232,17 +232,24 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               <strong>.srt</strong> — drag into Premiere; imports as captions.
             </li>
             <li>
+              <strong>markers.xml</strong> — Premiere <em>File → Import</em>. Adds
+              a sequence carrying every line as a marker. No extension needed.
+            </li>
+            <li>
               <strong>.vtt</strong> — for web players.
             </li>
             <li>
               <strong>.txt</strong> — the plain transcript.
             </li>
             <li>
-              <strong>markers.csv</strong> — timecoded, for a marker-import
-              extension. Premiere has no native marker import, so the SRT is the
-              reliable route.
+              <strong>markers.csv</strong> — the same timings for a spreadsheet,
+              or for a marker-import panel that expects CSV.
             </li>
           </ul>
+          <p className="muted small">
+            Markers land on their own sequence — copy them onto yours, or cut
+            against it directly.
+          </p>
           {job.preview?.length ? (
             <div className="subs-preview">
               {job.preview.map((line, i) => (
