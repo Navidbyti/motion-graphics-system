@@ -15,6 +15,8 @@ import type { z } from "zod";
 import { CandleChart } from "./templates/CandleChart/CandleChart";
 import { EndCard } from "./templates/EndCard/EndCard";
 import { endCardDefaults, endCardSchema, endCardSeconds } from "./templates/EndCard/schema";
+import { PriceZone } from "./templates/PriceZone/PriceZone";
+import { priceZoneDefaults, priceZoneSchema, priceZoneSeconds } from "./templates/PriceZone/schema";
 import { LineChart } from "./templates/LineChart/LineChart";
 import { lineChartDefaults, lineChartSchema, lineChartSeconds } from "./templates/LineChart/schema";
 import { HookTitle } from "./templates/HookTitle/HookTitle";
@@ -167,12 +169,26 @@ const lineChart = defineTemplate({
   durationInFrames: (props, fps) => Math.round(lineChartSeconds(props.speed) * fps),
 });
 
+const priceZone = defineTemplate({
+  id: "PriceZone",
+  title: "Price Zone",
+  blurb: "Dense price history with a highlighted band and labelled levels.",
+  tags: ["data", "finance", "analysis"],
+  component: PriceZone,
+  schema: priceZoneSchema,
+  defaults: priceZoneDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(priceZoneSeconds(props.speed) * fps),
+});
+
 export const registry: AnyTemplateEntry[] = [
   hookTitle,
   lowerThird,
   endCard,
   lineChart,
   candleChart,
+  priceZone,
 ];
 
 export const findTemplate = (id: string) => registry.find((t) => t.id === id);
