@@ -15,7 +15,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -77,10 +77,67 @@ const cleanEnv = Object.fromEntries(
  */
 const isWindows = process.platform === "win32";
 
+/**
+ * HOISTED, not nested — and this is a correctness issue on Windows, not a
+ * preference.
+ *
+ * `--install-strategy=nested` is npm's legacy layout: every dependency lives
+ * inside its parent rather than being flattened, which manufactures chains like
+ *
+ *   engine/node_modules/@remotion/cli/node_modules/@remotion/studio-server
+ *     /node_modules/@svgr/plugin-jsx/node_modules/@babel/core/node_modules/...
+ *
+ * Under the install root that lands at 259 characters, and Windows' MAX_PATH is
+ * 260. The files copy in fine — but NSIS cannot delete them, so *every
+ * subsequent install fails at the uninstall-old-files step*, with exit code 2
+ * and "Failed to uninstall old application files". The app was effectively
+ * un-upgradable, and nothing about the message points at path length.
+ *
+ * Hoisting is also the default, so this is a return to normal behaviour rather
+ * than a trick. The standalone install here hoists into the staged engine's own
+ * node_modules, which is exactly what the packaged app needs.
+ */
 execFileSync(
   isWindows ? "npm.cmd" : "npm",
-  ["install", "--omit=dev", "--no-audit", "--no-fund", "--install-strategy=nested"],
+  ["install", "--omit=dev", "--no-audit", "--no-fund"],
   { cwd: STAGE, stdio: "inherit", env: cleanEnv, shell: isWindows },
 );
+
+/**
+ * Guard the invariant rather than trusting it.
+ *
+ * A future dependency bump can reintroduce a deep chain, and the symptom
+ * appears one release later on someone else's machine as a failed upgrade. Fail
+ * the build here instead, where the cause is obvious.
+ */
+const INSTALL_ROOT_ALLOWANCE = 46; // "C:\Users\<name>\AppData\Local\Programs\Motion Graphics"
+const MAX_PATH = 260;
+const longest = [];
+
+const walk = (dir, depth = 0) => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, depth + 1);
+    else {
+      const projected =
+        INSTALL_ROOT_ALLOWANCE + path.relative(STAGE, full).length + "\\resources\\engine\\".length;
+      if (projected > MAX_PATH - 10) longest.push([projected, path.relative(STAGE, full)]);
+    }
+  }
+};
+
+walk(STAGE);
+
+if (longest.length) {
+  longest.sort((a, b) => b[0] - a[0]);
+  console.error(
+    `\n[stage] ${longest.length} file(s) would exceed Windows' MAX_PATH once installed.\n` +
+      `Longest (${longest[0][0]} chars):\n  ${longest[0][1]}\n\n` +
+      `This makes the app impossible to upgrade — NSIS cannot delete these files.\n` +
+      `Fix by removing the offending dependency from engine/package.json's\n` +
+      `"dependencies" (dev-only tools belong in devDependencies).\n`,
+  );
+  process.exit(1);
+}
 
 console.log(`[stage] done → ${STAGE}`);

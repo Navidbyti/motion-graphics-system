@@ -1,7 +1,7 @@
 {
   "name": "app",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,ui -c cyan,magenta \"npm:dev:server\" \"npm:dev:ui\"",
@@ -77,7 +77,8 @@
       "createDesktopShortcut": true,
       "shortcutName": "Motion Graphics",
       "allowElevation": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "build-resources/installer.nsh"
     },
     "publish": [
       {
