@@ -51,6 +51,28 @@ const loadEnvironment = () => {
   return null;
 };
 
+/**
+ * Find a port nothing else is holding.
+ *
+ * Without this the server silently fails to bind and the app talks to whatever
+ * already owns 3131 — during development that was a stale dev server, and it
+ * answered health checks convincingly enough to look like a pass. On someone
+ * else's machine it could be anything at all.
+ */
+const findFreePort = async (start) => {
+  const net = await import("node:net");
+  for (let port = start; port < start + 20; port++) {
+    const free = await new Promise((resolve) => {
+      const probe = net.createServer();
+      probe.once("error", () => resolve(false));
+      probe.once("listening", () => probe.close(() => resolve(true)));
+      probe.listen(port, "127.0.0.1");
+    });
+    if (free) return port;
+  }
+  return start;
+};
+
 /** Exports belong in the user's Videos folder, never inside the app bundle. */
 const resolveWatchFolder = () => {
   if (process.env.MG_WATCH_FOLDER) return process.env.MG_WATCH_FOLDER;
@@ -64,6 +86,8 @@ const resolveWatchFolder = () => {
  * ------------------------------------------------------------------ */
 
 let mainWindow = null;
+/** Resolved at boot; handed to the renderer so it can reach the right server. */
+let apiPort = 3131;
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -79,6 +103,10 @@ const createWindow = () => {
       preload: path.join(here, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      // Passed as an argv flag rather than over IPC so the renderer can read it
+      // synchronously — the API base is needed before the first fetch, not
+      // after an async round trip.
+      additionalArguments: [`--api-port=${apiPort}`],
     },
   });
 
@@ -163,6 +191,10 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     loadEnvironment();
     process.env.MG_WATCH_FOLDER = resolveWatchFolder();
+
+    apiPort = await findFreePort(Number(process.env.MG_PORT ?? 3131));
+    process.env.MG_PORT = String(apiPort);
+    if (apiPort !== 3131) console.log(`[port] 3131 was taken, using ${apiPort}`);
 
     if (!isDev) {
       // Packaged: the engine is unpacked from the asar archive because

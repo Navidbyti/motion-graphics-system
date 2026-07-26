@@ -11,8 +11,17 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
+/**
+ * The render server's port, passed as an argv flag by the main process.
+ * Read synchronously so the renderer knows the API base before its first fetch,
+ * rather than after an async IPC round trip.
+ */
+const portArg = process.argv.find((a) => a.startsWith("--api-port="));
+const apiPort = portArg ? Number(portArg.split("=")[1]) : 3131;
+
 contextBridge.exposeInMainWorld("desktop", {
   isDesktop: true,
+  apiPort,
 
   getVersion: () => ipcRenderer.invoke("app:version"),
 

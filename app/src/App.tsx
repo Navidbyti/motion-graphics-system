@@ -11,6 +11,7 @@ import { formats } from "@engine/brand/tokens";
 import { FPS } from "@engine/Root";
 import { compositionId, registry, type FormatName } from "@engine/registry";
 import { SchemaForm } from "./SchemaForm";
+import { Settings, loadCustomTheme } from "./Settings";
 
 type Backdrop = "dark" | "light" | "checker";
 type Health = {
@@ -30,10 +31,10 @@ type Health = {
  * still renders — templates are bundled — so the app looks completely fine
  * right up until someone tries to export.
  */
-const API_BASE = "http://localhost:3131";
-const isDesktopApp = Boolean(
-  (window as unknown as { desktop?: unknown }).desktop,
-);
+const bridge = (window as unknown as { desktop?: { apiPort?: number } }).desktop;
+const isDesktopApp = Boolean(bridge);
+// The port is resolved at boot — 3131 may already be taken on this machine.
+const API_BASE = `http://localhost:${bridge?.apiPort ?? 3131}`;
 const api = (path: string) => (isDesktopApp ? API_BASE + path : path);
 
 /** Bridge exposed by electron/preload.cjs. Absent when running in a browser. */
@@ -131,6 +132,7 @@ const BACKDROPS: Record<Backdrop, React.CSSProperties> = {
 
 export const App: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
 
   useEffect(() => {
@@ -151,10 +153,15 @@ export const App: React.FC = () => {
         {health && !health.ok ? (
           <span className="banner-error">{health.problem}</span>
         ) : null}
+        <button onClick={() => setSettingsOpen((o) => !o)}>
+          {settingsOpen ? "Close" : "Theme"}
+        </button>
         <SyncButton />
       </header>
 
-      {template ? (
+      {settingsOpen ? (
+        <Settings onClose={() => setSettingsOpen(false)} />
+      ) : template ? (
         <EditScreen
           key={template.id}
           template={template}
@@ -240,6 +247,17 @@ const EditScreen: React.FC<{
     }
   }, [template, props]);
 
+  /**
+   * The custom theme is attached at render time rather than edited in the props
+   * panel — it's a per-person setting, not a per-video one. Attaching it to the
+   * same object used by both <Player> and the export is what guarantees the
+   * preview and the file agree.
+   */
+  const renderProps = useMemo(
+    () => (props.brand === "custom" ? { ...props, theme: loadCustomTheme() } : props),
+    [props],
+  );
+
   // Poll while a render is in flight. One editor, one job — no websocket needed.
   useEffect(() => {
     if (!job || job.status !== "rendering") return;
@@ -258,7 +276,7 @@ const EditScreen: React.FC<{
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         compositionId: compositionId(template.id, format),
-        inputProps: props,
+        inputProps: renderProps,
         preset,
         name: `${template.id}-${format}`,
       }),
@@ -302,7 +320,7 @@ const EditScreen: React.FC<{
         <div className="stage-canvas" style={BACKDROPS[backdrop]}>
           <Player
             component={template.component}
-            inputProps={props}
+            inputProps={renderProps}
             durationInFrames={duration}
             fps={FPS}
             compositionWidth={formats[format].width}
