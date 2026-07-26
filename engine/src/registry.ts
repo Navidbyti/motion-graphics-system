@@ -15,6 +15,8 @@ import type { z } from "zod";
 import { CandleChart } from "./templates/CandleChart/CandleChart";
 import { EndCard } from "./templates/EndCard/EndCard";
 import { endCardDefaults, endCardSchema, endCardSeconds } from "./templates/EndCard/schema";
+import { LineChart } from "./templates/LineChart/LineChart";
+import { lineChartDefaults, lineChartSchema, lineChartSeconds } from "./templates/LineChart/schema";
 import { HookTitle } from "./templates/HookTitle/HookTitle";
 import {
   hookTitleDefaults,
@@ -152,6 +154,25 @@ const endCard = defineTemplate({
   durationInFrames: (props, fps) => Math.round(endCardSeconds(props.speed) * fps),
 });
 
-export const registry: AnyTemplateEntry[] = [hookTitle, lowerThird, endCard, candleChart];
+const lineChart = defineTemplate({
+  id: "LineChart",
+  title: "Line Chart",
+  blurb: "A value over time. The line draws in and the dots land as it passes.",
+  tags: ["data", "chart", "trend"],
+  component: LineChart,
+  schema: lineChartSchema,
+  defaults: lineChartDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(lineChartSeconds(props.speed) * fps),
+});
+
+export const registry: AnyTemplateEntry[] = [
+  hookTitle,
+  lowerThird,
+  endCard,
+  lineChart,
+  candleChart,
+];
 
 export const findTemplate = (id: string) => registry.find((t) => t.id === id);
