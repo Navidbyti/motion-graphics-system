@@ -333,7 +333,7 @@ const EditScreen: React.FC<{
    * the stage, and without a fit mode the player overflowed instead of
    * shrinking — flex children don't shrink below their content unless told to.
    */
-  const [zoom, setZoom] = useState<"fit" | "width" | number>("fit");
+  const [zoom, setZoom] = useState<"fit" | "height" | number>("fit");
 
   /**
    * A frame from the editor's own footage, kept between sessions. Stored as a
@@ -497,11 +497,11 @@ const EditScreen: React.FC<{
               Fit
             </button>
             <button
-              className={zoom === "width" ? "active" : ""}
-              onClick={() => setZoom("width")}
-              title="Fill the full width — scrolls if the format is taller than the window"
+              className={zoom === "height" ? "active" : ""}
+              onClick={() => setZoom("height")}
+              title="Fill the full height — the width follows the format"
             >
-              Width
+              Height
             </button>
             <button
               onClick={() =>
@@ -539,24 +539,36 @@ const EditScreen: React.FC<{
           <div
             className="player-frame"
             style={
-              zoom === "width"
+              zoom === "height"
                 ? {
                     /*
-                      Fill the stage's width and let the height follow the
-                      format. A 9:16 composition then overflows a wide window
-                      vertically, which is why the canvas switches to scrolling
-                      for this mode as well as for numeric zoom.
+                      Fill the stage's height and let the width follow the
+                      format. Filling the WIDTH instead was the obvious reading
+                      of "fit to screen" and the wrong one: a 9:16 composition
+                      then runs far past the bottom of the window, and the only
+                      way to see the rest is to scroll. Height is the dimension
+                      that actually constrains a vertical video.
                     */
-                    width: "100%",
+                    height: "100%",
                     aspectRatio: `${formats[format].width} / ${formats[format].height}`,
                   }
                 : zoom === "fit"
                 ? {
-                    aspectRatio: `${formats[format].width} / ${formats[format].height}`,
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    width: "100%",
+                    /*
+                      Height drives it; max-width reins it back in.
+
+                      Setting width AND height to 100% forced the box to the
+                      stage's own shape and defeated aspect-ratio completely: a
+                      9:16 composition got a 1.53 box and the Player letterboxed
+                      the video inside it, which is why the preview looked small
+                      no matter how much room there was. Only one dimension may
+                      be driven; the other has to follow the ratio. max-width
+                      then handles the landscape case, where width binds first
+                      and the height reduces to match.
+                    */
                     height: "100%",
+                    maxWidth: "100%",
+                    aspectRatio: `${formats[format].width} / ${formats[format].height}`,
                   }
                 : {
                     width: formats[format].width * zoom * 0.5,
