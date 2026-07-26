@@ -42,6 +42,13 @@ export const SPRING = {
 
   /** No overshoot at all. For anything that must land exactly on a value. */
   exact: { damping: 200, mass: 1, stiffness: 200 },
+
+  /**
+   * Underdamped (crit ≈ 25). The tactile "pop" a message bubble makes when it
+   * lands — a physical object arriving, not a div fading in. Reserved for the
+   * message-box surfaces, where the overshoot IS the effect.
+   */
+  bubble: { damping: 14, mass: 0.8, stiffness: 200 },
 } as const;
 
 export type SpringName = keyof typeof SPRING;
