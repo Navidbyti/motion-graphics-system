@@ -30,20 +30,9 @@ type Health = {
   problem: string | null;
 };
 
-/**
- * Where the render server lives.
- *
- * In dev the UI is served by Vite, which proxies /api to the server. In the
- * packaged app the UI loads from a file:// URL, where a relative "/api/…"
- * resolves against the filesystem root and every request fails. The Library
- * still renders — templates are bundled — so the app looks completely fine
- * right up until someone tries to export.
- */
-const bridge = (window as unknown as { desktop?: { apiPort?: number } }).desktop;
-const isDesktopApp = Boolean(bridge);
-// The port is resolved at boot — 3131 may already be taken on this machine.
-const API_BASE = `http://localhost:${bridge?.apiPort ?? 3131}`;
-const api = (path: string) => (isDesktopApp ? API_BASE + path : path);
+// See api.ts — the base URL differs between dev (Vite proxy) and the packaged
+// app (file:// origin, where a relative /api path resolves to nothing).
+import { api } from "./api";
 
 /** Bridge exposed by electron/preload.cjs. Absent when running in a browser. */
 type DesktopBridge = {
@@ -52,6 +41,8 @@ type DesktopBridge = {
   checkForUpdates: () => Promise<{ state: string; message?: string }>;
   installUpdate: () => Promise<void>;
   openFolder: (folder: string) => Promise<string>;
+  /** Optional — an older shell may not expose it after an update. */
+  openReleases?: () => Promise<void>;
   onUpdateStatus: (cb: (s: UpdateStatus) => void) => () => void;
 };
 
@@ -113,17 +104,35 @@ const SyncButton: React.FC = () => {
     });
   };
 
+  /*
+    A failed sync used to put the reason in a `title` tooltip, which nobody
+    hovers. The editor saw "Sync failed", pressed it again, and got the same
+    thing — with no way to tell a blocked network from a broken install, and no
+    idea that downloading it by hand was even an option. Both now show.
+  */
+  const failed = status?.state === "error";
+
   return (
     <div className="sync">
-      <button
-        className={status?.state === "ready" ? "active" : ""}
-        onClick={onClick}
-        disabled={status?.state === "checking" || status?.state === "downloading"}
-        title={status?.message ?? "Check for new templates"}
-      >
-        {label()}
-      </button>
-      {version ? <span className="muted small">v{version}</span> : null}
+      <div className="sync-main">
+        <button
+          className={status?.state === "ready" ? "active" : ""}
+          onClick={onClick}
+          disabled={status?.state === "checking" || status?.state === "downloading"}
+          title={status?.message ?? "Check for new templates"}
+        >
+          {label()}
+        </button>
+        {version ? <span className="muted small">v{version}</span> : null}
+      </div>
+      {failed ? (
+        <div className="sync-error small">
+          <span className="error">{status?.message ?? "Couldn't reach the update server."}</span>
+          <button className="link" onClick={() => desktop.openReleases?.()}>
+            Download it manually
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };

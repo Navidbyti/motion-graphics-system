@@ -8,9 +8,16 @@ on `main` reaches nobody until it is inside a published release.
 ```bash
 node -e "const f='app/package.json',fs=require('fs');const j=JSON.parse(fs.readFileSync(f,'utf8'));j.version='0.1.9';fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
 git commit -am "Bump to 0.1.9" && git push origin main
-npm run release -w app
+GH_TOKEN="$(gh auth token)" npm run release -w app
 gh release edit v0.1.9 --draft=false
+gh release list --limit 3
 ```
+
+`GH_TOKEN` must be in the environment. Without it the app still compiles and the
+installer is still written to `release/`, but the upload fails and — worse —
+`latest.yml` is left behind at the *previous* version. That file is the update
+manifest, so a half-finished publish leaves a build on disk that looks complete
+and an update feed that still points at the old release.
 
 ## Why that last line exists
 

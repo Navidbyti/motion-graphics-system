@@ -32,20 +32,47 @@ export const proxyInUse = proxyUrl;
  */
 const TIMEOUT_MS = Number(process.env.MG_HTTP_TIMEOUT_MS ?? 45_000);
 
-export const httpFetch = async (url, options = {}) => {
+const attempt = async (url, options, useProxy) => {
   try {
     return await undiciFetch(url, {
       ...options,
-      ...(dispatcher ? { dispatcher } : {}),
+      ...(useProxy && dispatcher ? { dispatcher } : {}),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (err) {
     if (err?.name === "TimeoutError" || err?.name === "AbortError") {
       throw new Error(
         `Request timed out after ${TIMEOUT_MS / 1000}s` +
-          (proxyUrl ? ` (via proxy ${proxyUrl})` : ""),
+          (useProxy && proxyUrl ? ` (via proxy ${proxyUrl})` : ""),
       );
     }
     throw err;
+  }
+};
+
+export const httpFetch = (url, options = {}) => attempt(url, options, true);
+
+/**
+ * For hosts that are NOT geo-blocked: go direct, fall back to the proxy.
+ *
+ * The proxy exists for services this machine can't otherwise reach. Market data
+ * isn't one of them, and routing it through a local proxy that is occasionally
+ * down turns a working request into "fetch failed" — which is exactly what
+ * happened during testing: the direct call succeeded while the proxied one
+ * didn't. Trying direct first also keeps working on a machine where Yahoo IS
+ * blocked, because the proxy attempt still follows.
+ */
+export const httpFetchDirectFirst = async (url, options = {}) => {
+  try {
+    return await attempt(url, options, false);
+  } catch (directError) {
+    if (!dispatcher) throw directError;
+    try {
+      return await attempt(url, options, true);
+    } catch {
+      // Report the direct failure: it's the one that describes the network the
+      // user is actually on.
+      throw directError;
+    }
   }
 };

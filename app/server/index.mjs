@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { pathToFileURL } from "node:url";
 import { proxyInUse } from "./http.mjs";
+import { ASSETS, TIMEFRAMES, fetchMarketSeries } from "./market.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(here, "..", "..");
@@ -76,6 +77,28 @@ app.get("/api/health", (_req, res) => {
       ? null
       : "No Chrome or Edge found. The renderer needs an installed browser.",
   });
+});
+
+/* ---------------- market data ---------------- */
+
+app.get("/api/market/assets", (_req, res) => {
+  res.json({
+    assets: ASSETS.map(({ id, label, source }) => ({ id, label, source })),
+    timeframes: TIMEFRAMES,
+  });
+});
+
+app.post("/api/market/series", async (req, res) => {
+  try {
+    res.json(await fetchMarketSeries(req.body ?? {}));
+  } catch (err) {
+    /*
+      502, not 500: the failure is upstream, and the message is written to be
+      read by the editor rather than by us. There is deliberately no fallback
+      series here — see market.mjs.
+    */
+    res.status(502).json({ error: String(err?.message ?? err) });
+  }
 });
 
 app.post("/api/thumbnail", async (req, res) => {

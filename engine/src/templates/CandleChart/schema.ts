@@ -52,10 +52,10 @@ export const candleChartSchema = withCommonLegacy({
   candles: z
     .array(candleSchema)
     .min(2)
-    .max(60)
+    .max(400)
     .describe(
       "The candles, left to right. Each needs open, high, low and close. " +
-        "Paste from a spreadsheet or let the prompt fill them.",
+        "Fetch them from the market, or paste from a spreadsheet.",
     ),
 
   currency: currency(),
@@ -129,8 +129,29 @@ export const TIMING = {
   perCandle: 0.075,
   settle: 1.0,
   outro: 1.2,
+  /**
+   * Ceiling on the whole candle reveal, in seconds.
+   *
+   * A per-candle stagger is right up to a few dozen candles and absurd beyond
+   * it: a full trading session at 0.075s each runs half a minute of candles
+   * walking in, which nobody watches. Past the cap the stagger compresses so
+   * the reveal reads as a sweep across the series rather than a queue — the
+   * same motion, just delivered at a rate the count can carry.
+   */
+  revealCap: 6,
 } as const;
 
+/**
+ * Effective per-candle delay. MUST be used by both the component and
+ * `candleChartSeconds`, or the composition length and the animation drift —
+ * the chart would either stop early or hold on a finished frame.
+ */
+export const perCandleSeconds = (candleCount: number) =>
+  Math.min(TIMING.perCandle, TIMING.revealCap / Math.max(candleCount, 1));
+
 export const candleChartSeconds = (candleCount: number, speed: number) =>
-  (TIMING.intro + candleCount * TIMING.perCandle + TIMING.settle + TIMING.outro) /
+  (TIMING.intro +
+    candleCount * perCandleSeconds(candleCount) +
+    TIMING.settle +
+    TIMING.outro) /
   speed;

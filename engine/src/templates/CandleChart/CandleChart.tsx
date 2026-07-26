@@ -28,7 +28,7 @@ import {
 import { useTheme } from "../../brand/useTheme";
 import { EASE, SPRING, fadeUp, scaleIn, sec, tabular } from "../../motion";
 import { spring } from "remotion";
-import { TIMING, type CandleChartProps } from "./schema";
+import { TIMING, perCandleSeconds, type CandleChartProps } from "./schema";
 
 export const CandleChart: React.FC<CandleChartProps> = ({
   brand,
@@ -91,7 +91,9 @@ export const CandleChart: React.FC<CandleChartProps> = ({
   /* ---------------- timing ---------------- */
 
   const introF = (TIMING.intro * fps) / (speed * b.motion.pace);
-  const perF = (TIMING.perCandle * fps) / (speed * b.motion.pace);
+  // Compressed past a few dozen candles — see perCandleSeconds. Must match
+  // candleChartSeconds exactly or the composition outlasts the animation.
+  const perF = (perCandleSeconds(candles.length) * fps) / (speed * b.motion.pace);
   const lastLanded = introF + candles.length * perF;
 
   const first = candles[0];

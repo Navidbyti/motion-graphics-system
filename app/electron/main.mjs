@@ -9,6 +9,7 @@
  * left running if the app is force-quit.
  */
 
+import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -162,6 +163,56 @@ const shutdownNow = () => {
     /* already gone */
   }
   app.exit(0);
+};
+
+/**
+ * Stop the render server and don't come back until it is actually gone.
+ *
+ * This exists because of how NSIS decides whether the app is running: it
+ * matches on the executable *name*. Every Electron helper — GPU, renderer, and
+ * our utility process — runs as "Motion Graphics.exe", so the render server is
+ * indistinguishable from the app itself as far as the installer is concerned.
+ * Firing the installer and killing the server 400ms later lost that race: the
+ * installer checked first, found a live "Motion Graphics.exe", and aborted with
+ * "Motion Graphics cannot be closed".
+ *
+ * A render also leaves headless Chrome behind, and those are grandchildren —
+ * killing the utility process does not reap them on Windows, so the tree gets
+ * killed explicitly.
+ */
+const stopRenderServer = async () => {
+  const proc = renderServer;
+  renderServer = null;
+  if (!proc) return;
+
+  const pid = proc.pid;
+
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    proc.once("exit", finish);
+    try {
+      proc.kill();
+    } catch {
+      finish();
+    }
+    // Never block the update on a process that refuses to die — the tree kill
+    // below is the backstop.
+    setTimeout(finish, 2000);
+  });
+
+  if (process.platform === "win32" && pid) {
+    try {
+      spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true });
+    } catch {
+      /* already gone */
+    }
+  }
+  log("[update] render server stopped");
 };
 
 const createWindow = () => {
@@ -402,15 +453,43 @@ ipcMain.handle("update:check", async () => {
   }
 });
 
-ipcMain.handle("update:install", () => {
+ipcMain.handle("update:install", async () => {
   /**
-   * `quitAndInstall` runs the installer and then asks the app to quit — but the
-   * installer starts checking immediately, so anything slow to die makes it
-   * abort with "Motion Graphics cannot be closed". The forced exit shortly
-   * after guarantees nothing is left for it to trip over.
+   * Order matters, and getting it wrong is what produced "Motion Graphics
+   * cannot be closed".
+   *
+   * `quitAndInstall` launches the installer immediately and the installer
+   * checks for running instances straight away — so everything that shares the
+   * executable name has to be dead BEFORE this is called, not shortly after.
+   * Previously the server was killed 400ms later and the installer usually won
+   * that race.
    */
+  try {
+    await stopRenderServer();
+    mainWindow?.destroy();
+    mainWindow = null;
+  } catch (err) {
+    log("[update] cleanup before install failed", err);
+  }
+
+  log("[update] launching installer");
   autoUpdater.quitAndInstall(false, true);
-  setTimeout(shutdownNow, 400);
+
+  /*
+    Failsafe. If anything still holds the app open, exit hard — the installer
+    has already been spawned as a detached process by this point, so it
+    survives and completes regardless.
+  */
+  setTimeout(() => app.exit(0), 3000);
 });
 
 ipcMain.handle("shell:openFolder", (_event, folder) => shell.openPath(folder));
+
+/**
+ * The manual path, for when the updater cannot reach GitHub at all — a blocked
+ * or filtered connection is not something the app can fix, and "Sync failed"
+ * with no way forward is a dead end.
+ */
+ipcMain.handle("shell:openReleases", () =>
+  shell.openExternal("https://github.com/Navidbyti/motion-graphics-system/releases/latest"),
+);

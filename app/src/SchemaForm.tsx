@@ -12,7 +12,22 @@
 
 import { useMemo, useState } from "react";
 import type { z } from "zod";
+import { MarketFetch, type MarketShape } from "./MarketFetch";
 import { fieldEntries, humanise } from "./schemaIntrospect";
+
+/**
+ * Which market shape, if any, a data array can be filled with — decided from
+ * the column names rather than from the template id, so a new chart template
+ * gets the fetch panel for free as long as its rows look like market data.
+ */
+const marketShapeOf = (columns: { key: string }[]): MarketShape | null => {
+  const keys = columns.map((c) => c.key);
+  if (["open", "high", "low", "close"].every((k) => keys.includes(k))) return "ohlc";
+  if (keys.length === 2 && keys.includes("label") && keys.includes("value")) {
+    return "points";
+  }
+  return null;
+};
 
 /* ------------------------------------------------------------------ *
  * Table editor
@@ -24,10 +39,13 @@ import { fieldEntries, humanise } from "./schemaIntrospect";
  * Typing 40 candles by hand is not a workflow anybody sustains.
  */
 const TableEditor: React.FC<{
-  columns: { key: string; int: boolean }[];
-  value: Record<string, number>[];
-  onChange: (v: Record<string, number>[]) => void;
-}> = ({ columns, value, onChange }) => {
+  columns: { key: string; int: boolean; text: boolean }[];
+  value: Record<string, unknown>[];
+  onChange: (v: Record<string, unknown>[]) => void;
+  /** From the schema — see `inspect()`. Never hardcode these here. */
+  minRows?: number;
+  maxRows?: number;
+}> = ({ columns, value, onChange, minRows = 2, maxRows = 500 }) => {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
 
@@ -53,16 +71,35 @@ const TableEditor: React.FC<{
 
     const parsed = body.map((cells) =>
       Object.fromEntries(
-        columns.map((col, i) => [col.key, Number(cells[i].replace(/[^0-9.-]/g, ""))]),
+        columns.map((col, i) => [
+          col.key,
+          // A text column (the line chart's axis label) is pasted verbatim —
+          // stripping non-digits from "Jul" leaves an empty string.
+          col.text ? cells[i] : Number(cells[i].replace(/[^0-9.-]/g, "")),
+        ]),
       ),
     );
-    if (parsed.some((row) => Object.values(row).some((n) => Number.isNaN(n)))) {
+    if (parsed.some((row) => Object.values(row).some((n) => typeof n === "number" && Number.isNaN(n)))) {
       return setPasteError("Some values aren't numbers.");
+    }
+
+    /*
+      Pasting more rows than the template accepts used to hand the extras
+      straight to the schema, which rejected the whole array — the editor saw a
+      validation failure rather than the obvious "that's too many". Take what
+      fits and say what was dropped.
+    */
+    if (parsed.length > maxRows) {
+      onChange(parsed.slice(0, maxRows));
+      setPasteOpen(false);
+      return setPasteError(
+        `Pasted ${parsed.length} rows; this template takes ${maxRows}. Kept the first ${maxRows}.`,
+      );
     }
 
     setPasteError(null);
     setPasteOpen(false);
-    onChange(parsed as Record<string, number>[]);
+    onChange(parsed);
   };
 
   /**
@@ -73,12 +110,12 @@ const TableEditor: React.FC<{
    * value forward with a small step gives something visible that the editor can
    * then correct.
    */
-  const extendFrom = (rows: Record<string, number>[]): Record<string, number> => {
+  const extendFrom = (rows: Record<string, unknown>[]): Record<string, unknown> => {
     const last = rows[rows.length - 1] ?? {};
     const keys = columns.map((c) => c.key);
     // OHLC-shaped data continues from the previous close.
     if (["open", "high", "low", "close"].every((k) => keys.includes(k))) {
-      const base = last.close ?? 100;
+      const base = Number(last.close ?? 100);
       const step = Math.max(Math.abs(base) * 0.01, 0.5);
       const close = base + step;
       return {
@@ -88,12 +125,14 @@ const TableEditor: React.FC<{
         close,
       };
     }
-    return Object.fromEntries(keys.map((k) => [k, last[k] ?? 0]));
+    return Object.fromEntries(
+      columns.map((c) => [c.key, last[c.key] ?? (c.text ? "" : 0)]),
+    );
   };
 
   /** Grow or trim the array to an exact length — beats clicking Add 12 times. */
   const setCount = (nextRaw: number) => {
-    const next = Math.max(2, Math.min(60, Math.round(nextRaw) || 2));
+    const next = Math.max(minRows, Math.min(maxRows, Math.round(nextRaw) || minRows));
     if (next === value.length) return;
     if (next < value.length) return onChange(value.slice(0, next));
     const rows = [...value];
@@ -102,8 +141,10 @@ const TableEditor: React.FC<{
   };
 
   const setCell = (rowIndex: number, key: string, raw: string) => {
+    // Text columns keep their string; only numeric ones are coerced.
+    const isText = columns.find((c) => c.key === key)?.text;
     const next = value.map((row, i) =>
-      i === rowIndex ? { ...row, [key]: Number(raw) } : row,
+      i === rowIndex ? { ...row, [key]: isText ? raw : Number(raw) } : row,
     );
     onChange(next);
   };
@@ -115,23 +156,24 @@ const TableEditor: React.FC<{
           <span className="muted">Rows</span>
           <input
             type="number"
-            min={2}
-            max={60}
+            min={minRows}
+            max={maxRows}
             value={value.length}
             onChange={(e) => setCount(Number(e.target.value))}
           />
+          <span className="muted small">of {maxRows}</span>
         </label>
         <div className="btn-group">
           <button onClick={() => setPasteOpen((o) => !o)}>Paste from sheet</button>
           <button
             onClick={() => onChange([...value, extendFrom(value)])}
-            disabled={value.length >= 60}
+            disabled={value.length >= maxRows}
           >
             Add
           </button>
           <button
             onClick={() => onChange(value.slice(0, -1))}
-            disabled={value.length <= 2}
+            disabled={value.length <= minRows}
           >
             Remove
           </button>
@@ -168,9 +210,9 @@ const TableEditor: React.FC<{
                 {columns.map((c) => (
                   <td key={c.key}>
                     <input
-                      type="number"
-                      value={row[c.key] ?? 0}
-                      step={c.int ? 1 : "any"}
+                      type={c.text ? "text" : "number"}
+                      value={String(row[c.key] ?? (c.text ? "" : 0))}
+                      step={c.text ? undefined : c.int ? 1 : "any"}
                       onChange={(e) => setCell(i, c.key, e.target.value)}
                     />
                   </td>
@@ -199,6 +241,31 @@ export const SchemaForm: React.FC<{
   const fields = useMemo(() => fieldEntries(schema, labels), [schema, labels]);
 
   const set = (key: string, v: unknown) => onChange({ ...value, [key]: v });
+
+  /**
+   * A market fetch fills more than the data array.
+   *
+   * The instrument's decimal places and its name are part of the same fact —
+   * pulling 200 EUR/USD bars and leaving the chart captioned "NASDAQ" at two
+   * decimals produces a chart that is wrong in exactly the way nobody notices
+   * until it's published. Only fields the template actually has are touched,
+   * and only the ones this fetch genuinely knows.
+   */
+  const fillFromMarket = (
+    key: string,
+    rows: Record<string, unknown>[],
+    meta: { label: string; source: string; timeframe: string; decimals: number },
+  ) => {
+    const next: Record<string, unknown> = { ...value, [key]: rows };
+    const has = (field: string) => fields.some((f) => f.key === field);
+
+    if (has("decimals")) next.decimals = meta.decimals;
+    if (has("ticker")) next.ticker = meta.label;
+    else if (has("title")) next.title = meta.label;
+    if (has("subtitle")) next.subtitle = `${meta.timeframe} · ${meta.source}`;
+
+    onChange(next);
+  };
 
   return (
     <div className="form">
@@ -275,11 +342,22 @@ export const SchemaForm: React.FC<{
           ) : null}
 
           {kind.kind === "objectArray" ? (
-            <TableEditor
-              columns={kind.columns}
-              value={(value[key] as Record<string, number>[]) ?? []}
-              onChange={(v) => set(key, v)}
-            />
+            <>
+              {marketShapeOf(kind.columns) ? (
+                <MarketFetch
+                  shape={marketShapeOf(kind.columns)!}
+                  maxRows={kind.maxItems ?? 400}
+                  onData={(rows, meta) => fillFromMarket(key, rows, meta)}
+                />
+              ) : null}
+              <TableEditor
+                columns={kind.columns}
+                value={(value[key] as Record<string, number>[]) ?? []}
+                onChange={(v) => set(key, v)}
+                minRows={kind.minItems}
+                maxRows={kind.maxItems}
+              />
+            </>
           ) : null}
 
           {kind.kind === "unsupported" ? (

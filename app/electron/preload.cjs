@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld("desktop", {
 
   openFolder: (folder) => ipcRenderer.invoke("shell:openFolder", folder),
 
+  /** Escape hatch when the in-app updater can't reach GitHub. */
+  openReleases: () => ipcRenderer.invoke("shell:openReleases"),
+
   /** Returns an unsubscribe function so React effects can clean up properly. */
   onUpdateStatus: (callback) => {
     const handler = (_event, payload) => callback(payload);

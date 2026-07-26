@@ -15,10 +15,10 @@ export const lineChartSchema = withCommon({
   points: z
     .array(pointSchema)
     .min(2)
-    .max(40)
+    .max(400)
     .describe(
       "The line, left to right. Each point needs a label and a value. " +
-        "Paste from a spreadsheet.",
+        "Fetch them from the market, or paste from a spreadsheet.",
     ),
 
   currency: currency("Symbol before the value. Leave empty for none"),

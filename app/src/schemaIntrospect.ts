@@ -20,7 +20,12 @@ export type FieldKind =
   | { kind: "number"; min?: number; max?: number; int: boolean }
   | { kind: "boolean" }
   | { kind: "enum"; values: string[] }
-  | { kind: "objectArray"; columns: { key: string; int: boolean }[] }
+  | {
+      kind: "objectArray";
+      columns: { key: string; int: boolean; text: boolean }[];
+      minItems?: number;
+      maxItems?: number;
+    }
   | { kind: "unsupported" };
 
 /** Strips wrappers that don't change how a field is edited. */
@@ -68,9 +73,20 @@ export const inspect = (schema: any): FieldKind => {
       const shape = inner._def.shape();
       return {
         kind: "objectArray",
+        // Row limits come from the schema, never from the form. They were
+        // hardcoded in both places and drifted: the schema allowed 60 candles
+        // and so did the form, but raising one without the other either caps
+        // the editor below what renders or lets him build data the template
+        // rejects.
+        minItems: s._def.minLength?.value,
+        maxItems: s._def.maxLength?.value,
         columns: Object.keys(shape).map((key) => ({
           key,
           int: numberChecks(unwrap(shape[key])).int,
+          // Every column used to be assumed numeric, which silently broke the
+          // line chart: its points carry a string axis label, and editing any
+          // cell ran the label through Number() and wrote NaN.
+          text: unwrap(shape[key])?._def?.typeName === "ZodString",
         })),
       };
     }
