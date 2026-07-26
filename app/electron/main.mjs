@@ -133,6 +133,16 @@ const setupUpdates = () => {
   );
 
   autoUpdater.checkForUpdates().catch(() => {});
+
+  /**
+   * Check again daily.
+   *
+   * A launch-only check misses the common case: an editing machine that stays
+   * open for a week. Failures are swallowed deliberately — a missed check must
+   * never interrupt someone mid-edit, and the Sync button is always there.
+   */
+  const DAY = 24 * 60 * 60 * 1000;
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), DAY);
 };
 
 /* ------------------------------------------------------------------ *

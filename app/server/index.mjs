@@ -14,27 +14,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { pathToFileURL } from "node:url";
-import { MODEL, generateProps, hasApiKey } from "./gemini.mjs";
 import { proxyInUse } from "./http.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(here, "..", "..");
 
 /**
- * Environment comes from `node --env-file-if-exists=../.env` in the npm script,
- * NOT from a loadEnvFile() call here.
- *
- * That distinction matters: ES module imports are fully evaluated before the
- * importing module's body runs, so http.mjs reads process.env for the proxy
- * setting *before* any loadEnvFile() on this line could take effect. The proxy
- * silently stayed unset and every Google call 403'd. Loading via the CLI flag
- * guarantees the environment exists before the first import evaluates.
+ * Environment comes from `node --env-file-if-exists=../.env` in the npm script
+ * (and from Electron's main process when packaged), never from a loadEnvFile()
+ * call here. ES module imports are fully evaluated before the importing
+ * module's body runs, so http.mjs would read process.env before any load on
+ * this line could take effect.
  */
 
-/**
- * Where finished files land. The editor points Premiere's media browser here
- * once and never thinks about paths again.
- */
 /**
  * The render service is imported dynamically, by absolute path.
  *
@@ -83,22 +75,7 @@ app.get("/api/health", (_req, res) => {
     problem: browser
       ? null
       : "No Chrome or Edge found. The renderer needs an installed browser.",
-    // Drives whether the prompt box appears at all. Without a key the app is
-    // still fully usable — the GUI is the primary path, prompting is a shortcut.
-    ai: { enabled: hasApiKey(), model: MODEL },
   });
-});
-
-app.post("/api/gemini", async (req, res) => {
-  const { instruction, responseSchema } = req.body ?? {};
-  if (!instruction || !responseSchema) {
-    return res.status(400).json({ error: "Missing instruction or responseSchema." });
-  }
-  try {
-    res.json({ data: await generateProps({ instruction, responseSchema }) });
-  } catch (err) {
-    res.status(502).json({ error: String(err?.message ?? err) });
-  }
 });
 
 app.post("/api/thumbnail", async (req, res) => {
@@ -162,7 +139,6 @@ app.listen(PORT, async () => {
   console.log(`watch folder   ${WATCH_FOLDER}`);
   console.log(`browser        ${resolveBrowser() ?? "NONE FOUND"}`);
   console.log(`proxy          ${proxyInUse ?? "direct (no HTTPS_PROXY set)"}`);
-  console.log(`ai             ${hasApiKey() ? MODEL : "disabled (no API key)"}`);
   // Warm the bundle at startup so the editor's first export isn't 10s slower
   // than every subsequent one for no visible reason.
   console.log("warming bundle…");

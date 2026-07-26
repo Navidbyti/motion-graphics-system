@@ -11,8 +11,6 @@ Card** — from one template library. Brand is a dropdown, not a fork.
 - **Library** of parameterised templates, each with a live preview
 - **Props form generated from the template's schema** — a new template gets its
   entire editing UI for free
-- **Prompt to fill in data** (optional, Gemini) — the model returns validated
-  settings, never code
 - **Export to ProRes 4444 with alpha**, straight onto a Premiere timeline
 
 ## Layout
@@ -30,7 +28,7 @@ app/             Vite + React UI and the render server
 
 ```bash
 npm install
-cp .env.example .env    # optional — only needed for the prompt feature
+cp .env.example .env    # optional
 npm run app             # UI on :5188, render server on :3131
 ```
 
@@ -47,11 +45,11 @@ engine/src/templates/YourTemplate/
 engine/src/registry.ts   one entry
 ```
 
-The Library card, props form, brand dropdown, format switcher, thumbnail, export
-presets and prompt constraints all derive from the schema. No app changes needed.
+The Library card, props form, brand dropdown, format switcher, thumbnail and
+export presets all derive from the schema. No app changes needed.
 
 See [`engine/TEMPLATE_SPEC.md`](engine/TEMPLATE_SPEC.md) for the contract every
-template must satisfy — it doubles as the context given to the model.
+template must satisfy.
 
 ## Notes
 

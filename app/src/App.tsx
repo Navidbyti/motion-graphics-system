@@ -11,7 +11,6 @@ import { formats } from "@engine/brand/tokens";
 import { FPS } from "@engine/Root";
 import { compositionId, registry, type FormatName } from "@engine/registry";
 import { SchemaForm } from "./SchemaForm";
-import { applyPrompt, serverModelCall } from "./promptToProps";
 
 type Backdrop = "dark" | "light" | "checker";
 type Health = {
@@ -20,7 +19,6 @@ type Health = {
   watchFolder: string;
   presets: { id: string; label: string; extension: string }[];
   problem: string | null;
-  ai: { enabled: boolean; model: string };
 };
 
 /** Bridge exposed by electron/preload.cjs. Absent when running in a browser. */
@@ -102,65 +100,6 @@ const SyncButton: React.FC = () => {
         {label()}
       </button>
       {version ? <span className="muted small">v{version}</span> : null}
-    </div>
-  );
-};
-
-/**
- * The prompt is a shortcut, never the only way in. If the key is missing or the
- * model fails, the editor still has the full form — so this degrades to
- * "slightly slower" rather than "blocked".
- */
-const PromptBox: React.FC<{
-  template: (typeof registry)[number];
-  props: Record<string, unknown>;
-  onApply: (next: Record<string, unknown>) => void;
-}> = ({ template, props, onApply }) => {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const run = async () => {
-    if (!text.trim()) return;
-    setBusy(true);
-    setMessage(null);
-
-    const result = await applyPrompt({
-      template,
-      currentProps: props,
-      userPrompt: text,
-      call: serverModelCall,
-    });
-
-    setBusy(false);
-    if (result.ok) {
-      onApply(result.props);
-      setText("");
-      setMessage(
-        result.attempts > 1
-          ? `Done (took ${result.attempts} tries).`
-          : "Done.",
-      );
-    } else {
-      setMessage(`${result.message} Try describing it differently, or edit below.`);
-    }
-  };
-
-  return (
-    <div className="prompt">
-      <textarea
-        rows={2}
-        value={text}
-        placeholder="Describe what you want — e.g. “14 candles from 412 to 447, dip around the fifth”"
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run();
-        }}
-      />
-      <button onClick={run} disabled={busy || !text.trim()}>
-        {busy ? "Working…" : "Fill in"}
-      </button>
-      {message ? <p className="small muted">{message}</p> : null}
     </div>
   );
 };
@@ -363,9 +302,6 @@ const EditScreen: React.FC<{
       <aside className="panel">
         <h2>{template.title}</h2>
 
-        {health?.ai.enabled ? (
-          <PromptBox template={template} props={props} onApply={setProps} />
-        ) : null}
 
         <SchemaForm
           schema={template.schema}

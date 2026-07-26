@@ -3,10 +3,10 @@
  *
  * Two consumers:
  *   - SchemaForm renders controls from these field kinds
- *   - promptToProps converts the same kinds into a Gemini response schema
+ *   - the template contract shown to editors lists the same fields
  *
- * Both must agree: if the form can edit a field, the model must be able to fill
- * it, and vice versa. Keeping one introspector is what guarantees that.
+ * Keeping one introspector means the form and any generated documentation can
+ * never disagree about what a template accepts.
  *
  * Zod v3 `_def` is private API, so it is fenced into this file. A Zod upgrade
  * breaks only here.
@@ -115,74 +115,4 @@ export const fieldEntries = (
       description,
     };
   });
-};
-
-/* ------------------------------------------------------------------ *
- * Gemini response schema
- * ------------------------------------------------------------------ */
-
-/**
- * Converts a template schema into the subset of JSON Schema Gemini accepts
- * (an OpenAPI 3.0 flavour: type / description / enum / items / properties).
- *
- * Deliberately hand-rolled rather than using zod-to-json-schema: that library
- * needs a newer Zod than Remotion pins, and it emits constructs Gemini rejects
- * ($ref, anyOf, additionalProperties). This emits only what the API takes.
- *
- * Every property is optional. The model returns a PATCH — just the fields the
- * request implies — which is then merged over the current props. That way a
- * prompt about the price can't silently blank the ticker.
- */
-export const toGeminiSchema = (schema: any, labels?: Record<string, string>) => {
-  const properties: Record<string, unknown> = {};
-
-  for (const field of fieldEntries(schema, labels)) {
-    const { key, kind, label } = field;
-
-    if (kind.kind === "string") {
-      properties[key] = {
-        type: "string",
-        description: kind.maxLength
-          ? `${label} (max ${kind.maxLength} characters)`
-          : label,
-      };
-    } else if (kind.kind === "color") {
-      properties[key] = {
-        type: "string",
-        description: `${label}. A hex colour like #22C55E.`,
-      };
-    } else if (kind.kind === "number") {
-      const range =
-        kind.min !== undefined && kind.max !== undefined
-          ? ` Between ${kind.min} and ${kind.max}.`
-          : "";
-      properties[key] = {
-        type: kind.int ? "integer" : "number",
-        description: `${label}.${range}`,
-      };
-    } else if (kind.kind === "boolean") {
-      properties[key] = { type: "boolean", description: label };
-    } else if (kind.kind === "enum") {
-      properties[key] = { type: "string", enum: kind.values, description: label };
-    } else if (kind.kind === "objectArray") {
-      properties[key] = {
-        type: "array",
-        description: label,
-        items: {
-          type: "object",
-          properties: Object.fromEntries(
-            kind.columns.map((c) => [
-              c.key,
-              { type: c.int ? "integer" : "number" },
-            ]),
-          ),
-          required: kind.columns.map((c) => c.key),
-        },
-      };
-    }
-    // Unsupported kinds are simply omitted — the model can't fill what the
-    // form can't show, which keeps the two in sync by construction.
-  }
-
-  return { type: "object", properties };
 };

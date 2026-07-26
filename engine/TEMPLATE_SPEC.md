@@ -3,8 +3,8 @@
 Every template in this library must satisfy this document. It has two audiences:
 
 1. **Anyone authoring a template** (Rumi + Claude Code) — this is the checklist.
-2. **The prompt→props model** — this file is fed to Gemini as context so it fills
-   props correctly instead of inventing them.
+2. **Any LLM an editor uses to draft a template** — paste this file in as context
+   so it produces something that fits the system instead of inventing one.
 
 A template that violates any **MUST** does not enter the registry. The `check`
 gate enforces the mechanical ones; the rest are review items.
@@ -54,14 +54,12 @@ The schema *is* the editing UI, so it must be written for a non-technical reader
   app *and* in Remotion Studio. Label colours via the registry entry's `labels`
   map instead. *(These two rules conflicted in the first draft of this spec;
   caught in Phase 3.)*
-- **MUST** constrain numbers with `.min()` / `.max()`. This is what makes
-  prompt→props safe: an out-of-range value is rejected by validation rather than
-  producing a broken frame.
+- **MUST** constrain numbers with `.min()` / `.max()`, so an out-of-range value
+  is rejected by validation rather than producing a broken frame.
 - **SHOULD** default every field. A field the editor never touches should still
   look right.
 - **SHOULD** prefer enums over free text for anything with fixed options
-  (`z.enum(["bull", "bear"])`), so the GUI renders a dropdown and the model cannot
-  invent a value.
+  (`z.enum(["bull", "bear"])`), so the GUI renders a dropdown.
 
 ## 3. Layout
 
