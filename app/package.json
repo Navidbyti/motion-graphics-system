@@ -1,7 +1,7 @@
 {
   "name": "app",
   "private": true,
-  "version": "0.1.21",
+  "version": "0.1.22",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,ui -c cyan,magenta \"npm:dev:server\" \"npm:dev:ui\"",
@@ -88,7 +88,8 @@
       }
     ],
     "electronVersion": "33.4.11",
-    "nodeGypRebuild": false
+    "nodeGypRebuild": false,
+    "compression": "normal"
   },
   "author": {
     "name": "Hoteldebit",
