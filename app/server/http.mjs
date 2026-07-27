@@ -37,7 +37,17 @@ const attempt = async (url, options, useProxy) => {
     return await undiciFetch(url, {
       ...options,
       ...(useProxy && dispatcher ? { dispatcher } : {}),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      /*
+        A caller-supplied signal wins.
+
+        This default is a TOTAL time limit, which is right for an API call and
+        wrong for a download: it kills the transfer 45 seconds in regardless of
+        how healthy it is, so a 466 MB model could never finish. Anything
+        fetching a large body passes its own signal — typically one that fires
+        on inactivity rather than on elapsed time. Note this must come after the
+        options spread, or the default would silently override the caller's.
+      */
+      signal: options.signal ?? AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (err) {
     if (err?.name === "TimeoutError" || err?.name === "AbortError") {
@@ -51,6 +61,12 @@ const attempt = async (url, options, useProxy) => {
 };
 
 export const httpFetch = (url, options = {}) => attempt(url, options, true);
+
+/** Straight out, ignoring any configured proxy. */
+export const httpFetchDirect = (url, options = {}) => attempt(url, options, false);
+
+/** True when a proxy is configured and therefore worth falling back to. */
+export const hasProxy = Boolean(dispatcher);
 
 /**
  * For hosts that are NOT geo-blocked: go direct, fall back to the proxy.

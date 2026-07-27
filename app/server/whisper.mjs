@@ -22,7 +22,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { httpFetchDirectFirst } from "./http.mjs";
+import { hasProxy, httpFetch, httpFetchDirect, httpFetchDirectFirst } from "./http.mjs";
 
 /**
  * The BLAS build, not the plain one. It is 19 MB against 7 MB and roughly twice
@@ -129,28 +129,96 @@ export const whisperStatus = () => {
  * ------------------------------------------------------------------ */
 
 /**
- * Streamed to disk, and to a temporary name first.
+ * How long a transfer may go with NO bytes arriving before it is abandoned.
+ *
+ * This is deliberately not a total time limit. The shared client's default is
+ * one, which is correct for an API call and fatal here: it killed the model
+ * download 45 seconds in no matter how healthy the connection was, so anything
+ * larger than about 50 MB could never complete. What actually needs detecting
+ * is a *stalled* transfer, and silence is the signal for that — a slow line is
+ * still making progress and should be left alone.
+ */
+const STALL_MS = Number(process.env.MG_DOWNLOAD_STALL_MS ?? 60_000);
+
+/**
+ * Streamed to disk, resumable, to a temporary name first.
  *
  * A 1.6 GB model buffered in memory is a crash on a modest machine, and a
  * partial file left at the real path would look installed forever after — the
  * next run would load a truncated model and fail somewhere far less obvious.
+ *
+ * Resume matters more than it might seem: on a filtered or proxied connection a
+ * large download will fail sometimes, and starting a 1.6 GB fetch again from
+ * zero turns one bad attempt into an afternoon. The `.part` file is kept and
+ * continued with a Range request.
  */
 const download = async (url, destination, onProgress) => {
-  const response = await httpFetchDirectFirst(url);
-  if (!response.ok) {
+  mkdirSync(path.dirname(destination), { recursive: true });
+  const temporary = `${destination}.part`;
+
+  let alreadyHave = 0;
+  try {
+    alreadyHave = statSync(temporary).size;
+  } catch {
+    /* no partial file — starting fresh */
+  }
+
+  /*
+    Direct first, proxy second — each with its OWN watchdog.
+
+    Sharing one abort controller across both attempts looked simpler and was
+    wrong: a blocked direct connection would trip the stall timer, abort the
+    controller, and the proxy attempt would then fail instantly on an
+    already-aborted signal. That is precisely the case the fallback exists for.
+  */
+  const attemptFetch = async (fetcher) => {
+    const controller = new AbortController();
+    let timer = setTimeout(() => controller.abort(), STALL_MS);
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => controller.abort(), STALL_MS);
+    };
+    const response = await fetcher(url, {
+      signal: controller.signal,
+      headers: alreadyHave > 0 ? { Range: `bytes=${alreadyHave}-` } : {},
+    });
+    return { response, controller, reset, cancel: () => clearTimeout(timer) };
+  };
+
+  let attemptResult;
+  try {
+    attemptResult = await attemptFetch(httpFetchDirect);
+  } catch (directError) {
+    if (!hasProxy) throw directError;
+    attemptResult = await attemptFetch(httpFetch);
+  }
+
+  const { response, controller, reset: resetStall, cancel } = attemptResult;
+
+  if (!response.ok && response.status !== 206) {
+    cancel();
     throw new Error(`Download failed (HTTP ${response.status}) — ${url}`);
   }
 
-  const total = Number(response.headers.get("content-length") ?? 0);
-  let received = 0;
-  let lastReport = 0;
+  /*
+    206 means the server honoured the range and we continue appending. A plain
+    200 after asking for a range means it ignored the header and is sending the
+    whole file again, so the partial has to be discarded rather than appended
+    to — otherwise the result is a corrupt file of the wrong length.
+  */
+  const resuming = alreadyHave > 0 && response.status === 206;
+  const startAt = resuming ? alreadyHave : 0;
 
-  const temporary = `${destination}.part`;
-  mkdirSync(path.dirname(destination), { recursive: true });
+  const remaining = Number(response.headers.get("content-length") ?? 0);
+  const total = remaining ? startAt + remaining : 0;
+
+  let received = startAt;
+  let lastReport = 0;
 
   const body = Readable.fromWeb(response.body);
   body.on("data", (chunk) => {
     received += chunk.length;
+    resetStall();
     const now = Date.now();
     // Throttled: a progress callback per chunk floods the job object.
     if (onProgress && now - lastReport > 250) {
@@ -159,7 +227,21 @@ const download = async (url, destination, onProgress) => {
     }
   });
 
-  await pipeline(body, createWriteStream(temporary));
+  try {
+    await pipeline(body, createWriteStream(temporary, resuming ? { flags: "a" } : {}));
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(
+        `The download stalled — no data for ${STALL_MS / 1000}s. ` +
+          `Press Transcribe again and it will carry on from ` +
+          `${(received / 1048576).toFixed(0)} MB rather than starting over.`,
+      );
+    }
+    throw err;
+  } finally {
+    cancel();
+  }
+
   await rename(temporary, destination);
 };
 
