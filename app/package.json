@@ -88,8 +88,7 @@
       }
     ],
     "electronVersion": "33.4.11",
-    "nodeGypRebuild": false,
-    "compression": "normal"
+    "nodeGypRebuild": false
   },
   "author": {
     "name": "Hoteldebit",
