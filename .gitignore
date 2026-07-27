@@ -26,3 +26,6 @@ dist/
 Thumbs.db
 .DS_Store
 app/build/
+
+# Built at packaging time by app/scripts/stage-engine.mjs — never committed.
+engine/bundle/

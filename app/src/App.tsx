@@ -51,11 +51,24 @@ type DesktopBridge = {
 };
 
 type UpdateStatus = {
-  state: "checking" | "downloading" | "ready" | "current" | "error" | "dev";
+  state:
+    | "checking"
+    | "downloading"
+    | "ready"
+    | "installing"
+    | "current"
+    | "error"
+    | "dev";
   version?: string;
   percent?: number;
   message?: string;
+  transferred?: number;
+  total?: number;
+  bytesPerSecond?: number;
 };
+
+const mb = (bytes?: number) =>
+  bytes == null ? null : `${(bytes / 1048576).toFixed(0)} MB`;
 
 const desktop: DesktopBridge | undefined = (
   window as unknown as { desktop?: DesktopBridge }
@@ -88,7 +101,9 @@ const SyncButton: React.FC = () => {
       case "downloading":
         return status.percent ? `Downloading ${status.percent}%` : "Downloading…";
       case "ready":
-        return `Restart to update`;
+        return `Install and restart`;
+      case "installing":
+        return "Installing…";
       case "current":
         return "Up to date";
       case "error":
@@ -138,13 +153,56 @@ const SyncButton: React.FC = () => {
         <button
           className={status?.state === "ready" ? "active" : ""}
           onClick={onClick}
-          disabled={status?.state === "checking" || status?.state === "downloading"}
+          disabled={
+            status?.state === "checking" ||
+            status?.state === "downloading" ||
+            status?.state === "installing"
+          }
           title={status?.message ?? "Check for new templates"}
         >
           {label()}
         </button>
         {version ? <span className="muted small">v{version}</span> : null}
       </div>
+
+      {/*
+        A bar, with bytes and a rate.
+
+        The button label alone could not distinguish a slow 125 MB download on a
+        filtered connection from a hung one, and the app then closing to install
+        with no explanation made it worse — there was no way to tell what stage
+        anything was at.
+      */}
+      {status?.state === "downloading" ? (
+        <div className="update-progress">
+          <div className="bar">
+            <div className="bar-fill" style={{ width: `${status.percent ?? 0}%` }} />
+          </div>
+          <span className="muted small">
+            {mb(status.transferred) ?? "…"} of {mb(status.total) ?? "…"}
+            {status.bytesPerSecond
+              ? ` · ${(status.bytesPerSecond / 1048576).toFixed(1)} MB/s`
+              : ""}
+          </span>
+        </div>
+      ) : null}
+
+      {status?.state === "installing" ? (
+        <div className="update-progress">
+          <div className="bar">
+            <div className="bar-fill indeterminate" />
+          </div>
+          <span className="muted small">
+            Installing — the app will close and reopen itself.
+          </span>
+        </div>
+      ) : null}
+
+      {status?.state === "ready" ? (
+        <span className="muted small">
+          v{status.version} downloaded. Installs in about a minute.
+        </span>
+      ) : null}
       {failed ? (
         <div className="sync-error small">
           <span className="error">{status?.message ?? "Couldn't reach the update server."}</span>

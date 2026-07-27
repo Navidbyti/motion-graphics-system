@@ -305,8 +305,21 @@ const setupUpdates = () => {
     send("update:status", { state: "downloading", version: info.version }),
   );
   autoUpdater.on("update-not-available", () => send("update:status", { state: "current" }));
+  /*
+    Bytes and rate, not just a percentage.
+
+    "Downloading 12%" on a 125 MB file over a filtered connection is
+    indistinguishable from a hang. Showing how much has arrived and how fast is
+    what lets someone tell "slow" from "stuck" without opening a log.
+  */
   autoUpdater.on("download-progress", (p) =>
-    send("update:status", { state: "downloading", percent: Math.round(p.percent) }),
+    send("update:status", {
+      state: "downloading",
+      percent: Math.round(p.percent),
+      transferred: p.transferred,
+      total: p.total,
+      bytesPerSecond: p.bytesPerSecond,
+    }),
   );
   autoUpdater.on("update-downloaded", (info) =>
     send("update:status", { state: "ready", version: info.version }),
@@ -506,9 +519,21 @@ ipcMain.handle("update:install", async () => {
     log("[update] could not stop the render server", err);
   }
 
+  // Tell the window before it goes: the app vanishing with no warning is the
+  // single most alarming part of an update, and it is about to vanish.
+  send("update:status", { state: "installing" });
+
   log("[update] launching installer");
   try {
-    autoUpdater.quitAndInstall(false, true);
+    /*
+      Silent, and relaunch afterwards.
+
+      `isSilent: false` shows NSIS's own wizard — a second, unexplained window
+      appearing after the app disappears, with Next buttons for a decision
+      nobody is making. Silent installs and reopens the app, which is what
+      "update" is supposed to mean.
+    */
+    autoUpdater.quitAndInstall(true, true);
   } catch (err) {
     // Put the app back in a usable state rather than leaving it a zombie that
     // won't close normally either.

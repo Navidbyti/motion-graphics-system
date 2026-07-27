@@ -15,7 +15,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bundle } from "@remotion/bundler";
+// NOT a static import — see getBundle. @remotion/bundler is a build-time tool
+// and is deliberately absent from the packaged app, so importing it up here
+// would make the whole render service fail to load.
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -77,8 +79,32 @@ let cachedBundle = null;
  * Bundling is the slow part (~10s). The app bundles once at startup and reuses
  * the URL for every preview, thumbnail and export in the session.
  */
+/**
+ * Prefer a bundle built at packaging time; compile one only in development.
+ *
+ * Bundling runs webpack over the whole template library. Doing that at every
+ * app start cost roughly fifty seconds before the first export could begin —
+ * the "warming bundle…" in the log — and it meant shipping the entire build
+ * toolchain inside the app just to rebuild, on every machine and every launch,
+ * output that is identical for a given release.
+ *
+ * So the release now carries the compiled bundle and this returns the path:
+ * about half a second instead of fifty, and @remotion/bundler drops out of the
+ * shipped dependencies entirely.
+ *
+ * Development still compiles at runtime, and must: editing a template has to
+ * show up in the next render without anyone remembering to rebuild.
+ */
 export const getBundle = async (onProgress) => {
   if (cachedBundle) return cachedBundle;
+
+  const prebuilt = process.env.MG_BUNDLE_DIR ?? path.join(ENGINE_ROOT, "bundle");
+  if (existsSync(path.join(prebuilt, "index.html"))) {
+    cachedBundle = prebuilt;
+    return cachedBundle;
+  }
+
+  const { bundle } = await import("@remotion/bundler");
   cachedBundle = await bundle({
     entryPoint: path.join(ENGINE_ROOT, "src", "index.ts"),
     onProgress,

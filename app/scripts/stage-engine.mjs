@@ -52,6 +52,40 @@ if (existsSync(stagedLock)) rmSync(stagedLock);
 // workspace it was lifted out of.
 writeFileSync(path.join(STAGE, ".npmrc"), "workspaces=false\npackage-lock=false\n");
 
+/**
+ * Compile the Remotion bundle once, here, instead of on every launch.
+ *
+ * This is the same work the app used to do at startup — webpack over the whole
+ * template library, about fifty seconds — repeated on every machine and every
+ * run to produce output that is identical for a given release. Doing it at
+ * packaging time makes startup nearly instant and lets @remotion/bundler and
+ * its webpack toolchain stay out of the shipped app entirely.
+ *
+ * Run from the SOURCE engine, where the dev dependencies live.
+ */
+const isWindowsPlatform = process.platform === "win32";
+console.log("[stage] building the Remotion bundle…");
+/*
+  The output path must be quoted.
+
+  `shell: true` is unavoidable on Windows — Node refuses to spawn a .cmd
+  directly — but it also means the arguments are joined into one command line
+  without quoting. This repo lives under "Motion graphy creator", so the path
+  was cut at the first space and the bundle landed in D:\Hoteldebit\Motion.
+  Nothing errored; the output simply appeared somewhere else, which the
+  index.html check below is here to catch.
+*/
+execFileSync(
+  isWindowsPlatform ? "npx.cmd" : "npx",
+  ["remotion", "bundle", "src/index.ts", `--out-dir="${path.join(STAGE, "bundle")}"`],
+  { cwd: SOURCE, stdio: "inherit", shell: isWindowsPlatform },
+);
+
+if (!existsSync(path.join(STAGE, "bundle", "index.html"))) {
+  console.error("[stage] the bundle did not produce an index.html — aborting.");
+  process.exit(1);
+}
+
 console.log("[stage] installing production dependencies (this takes a minute)…");
 
 /**

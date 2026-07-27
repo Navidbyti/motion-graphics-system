@@ -6,7 +6,6 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@remotion/bundler": "^4.0.499",
     "@remotion/player": "^4.0.499",
     "@remotion/renderer": "^4.0.499",
     "@remotion/zod-types": "^4.0.499",
@@ -16,6 +15,7 @@
     "zod": "^3.22.3"
   },
   "devDependencies": {
+    "@remotion/bundler": "^4.0.499",
     "@remotion/cli": "4.0.499",
     "@remotion/eslint-config-flat": "4.0.499",
     "@types/react": "19.2.7",

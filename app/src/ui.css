@@ -78,6 +78,8 @@ input[type="range"] { padding: 0; }
 .sync-main { display: flex; align-items: center; gap: 10px; }
 .sync button { padding: 5px 12px; font-size: 13px; }
 /* A failed sync states the reason and offers a way out. */
+.update-progress { display: grid; gap: 4px; justify-items: end; min-width: 220px; }
+.update-progress .bar { width: 220px; }
 .sync-error { display: flex; align-items: center; gap: 8px; max-width: 520px; }
 .sync-error .error { text-align: right; }
 button.link {
