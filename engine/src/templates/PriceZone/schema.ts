@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { decimals, label, subline, toggle, withCommon } from "../fields";
+import { annotationSchema, beatSchema } from "../../charting/annotations";
 
 export const barSchema = z.object({
   open: z.number(),
@@ -32,15 +33,30 @@ export const priceZoneSchema = withCommon({
         "Paste a few hundred rows from a spreadsheet.",
     ),
 
-  zones: z
-    .array(zoneSchema)
-    .max(3)
-    .describe("Highlighted price bands, e.g. a support area"),
+  /**
+   * One ordered list, not a field per shape.
+   *
+   * The previous `zones` (max 3) and `markers` (max 4) could not express
+   * drawing order — a zone always sat under a marker because of which array it
+   * lived in — and could not be referenced individually by a reveal. A single
+   * list fixes both: later items draw on top, and any item can be named by a
+   * beat.
+   */
+  annotations: z
+    .array(annotationSchema)
+    .max(40)
+    .describe("Zones, levels, trendlines, arrows — drawn in order, last on top"),
 
-  markers: z
-    .array(markerSchema)
-    .max(4)
-    .describe("Labelled levels that point at a price"),
+  /**
+   * The reveal, one step at a time.
+   *
+   * Anything without a beat appears with the chart, so annotations can be added
+   * without touching this and still produce a sensible video.
+   */
+  beats: z
+    .array(beatSchema)
+    .max(40)
+    .describe("When each annotation appears. Leave empty to show everything at once"),
 
   decimals: decimals("Decimal places on prices"),
 
@@ -93,10 +109,30 @@ export const priceZoneDefaults: PriceZoneProps = {
   ticker: "EUR / USD",
   subtitle: "Daily · OANDA",
   bars: generateBars(180),
-  zones: [{ from: 1.107, to: 1.1193 }],
-  markers: [
-    { value: 1.11929, text: "" },
-    { value: 1.10701, text: "" },
+  /*
+    A worked example rather than a token one: two zones, a channel and a
+    callout, revealed in sequence. The defaults are what a new user sees first,
+    and "here is what this template is for" is worth more than an empty chart.
+  */
+  annotations: [
+    { id: "supply", kind: "zone", from: 1.179, to: 1.1921, color: "#E4572E", label: "Supply" },
+    { id: "demand", kind: "zone", from: 1.107, to: 1.1193, color: "#1FA463", label: "Demand" },
+    {
+      id: "trend",
+      kind: "channel",
+      a: { index: 18, price: 1.1035 },
+      b: { index: 96, price: 1.1735 },
+      offset: 0.021,
+      extend: false,
+    },
+    { id: "note", kind: "note", at: { index: 150, price: 1.1465 }, label: "Rejected" },
+  ],
+
+  beats: [
+    { target: "supply", at: 0.2, duration: 0.55, effect: "wipe" },
+    { target: "demand", at: 0.8, duration: 0.55, effect: "wipe" },
+    { target: "trend", at: 1.5, duration: 0.9, effect: "draw" },
+    { target: "note", at: 2.5, duration: 0.4, effect: "pop" },
   ],
   decimals: 5,
   showAxis: true,
@@ -116,5 +152,19 @@ export const TIMING = {
   outro: 0.9,
 } as const;
 
-export const priceZoneSeconds = (speed: number) =>
-  (TIMING.intro + TIMING.wipe + TIMING.annotate + TIMING.hold + TIMING.outro) / speed;
+/**
+ * Duration follows the beat sheet.
+ *
+ * A fixed length would cut the video off mid-reveal the moment someone adds a
+ * beat at four seconds — the composition has to be at least as long as the
+ * analysis it is showing, plus time to read the last thing that appeared.
+ */
+export const priceZoneSeconds = (
+  speed: number,
+  beats: { at: number; duration: number }[] = [],
+) => {
+  const lastBeat = beats.reduce((max, b) => Math.max(max, b.at + b.duration), 0);
+  return (
+    (TIMING.intro + TIMING.wipe + lastBeat + TIMING.hold + TIMING.outro) / speed
+  );
+};

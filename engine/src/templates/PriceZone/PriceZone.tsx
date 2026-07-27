@@ -26,6 +26,9 @@ import { radius, safe, shadow, space, type, weight } from "../../brand/tokens";
 import { useLayout } from "../../layout";
 import { EASE, fadeUp, scaleIn, sec, tabular } from "../../motion";
 import { TIMING, type PriceZoneProps } from "./schema";
+import { AnnotationLayer } from "../../charting/AnnotationLayer";
+import { annotationPrices } from "../../charting/annotations";
+import { priceScale, priceToPct, priceToSvgY, slotWidth } from "../../charting/geometry";
 
 export const PriceZone: React.FC<PriceZoneProps> = ({
   brand,
@@ -33,8 +36,8 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
   ticker,
   subtitle,
   bars,
-  zones,
-  markers,
+  annotations,
+  beats,
   decimals,
   showAxis,
   showLast,
@@ -55,21 +58,18 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
 
   /* ---------------- scale ---------------- */
 
-  const lows = bars.map((x) => x.low);
-  const highs = bars.map((x) => x.high);
-  // Zones and markers must be inside the visible range or they'd point off-frame.
-  const zoneValues = zones.flatMap((z) => [z.from, z.to]);
-  const markerValues = markers.map((m) => m.value);
-  const rawLo = Math.min(...lows, ...zoneValues, ...markerValues);
-  const rawHi = Math.max(...highs, ...zoneValues, ...markerValues);
-  const pad = (rawHi - rawLo) * 0.08 || 1;
-  const lo = rawLo - pad;
-  const hi = rawHi + pad;
+  /*
+    The scale comes from the shared geometry module, which the editor also uses
+    to turn mouse positions into prices. Computing it twice would let the two
+    drift, and drift means a line renders somewhere other than where it was
+    drawn.
+  */
+  const scaleInfo = priceScale(bars, annotationPrices(annotations));
+  const { lo, hi } = scaleInfo;
 
-  const pctY = (v: number) => ((v - lo) / (hi - lo)) * 100;
-  /** SVG y grows downward, so paths use the inverse. */
-  const svgY = (v: number) => 100 - pctY(v);
-  const slot = 100 / bars.length;
+  const pctY = (v: number) => priceToPct(v, scaleInfo);
+  const svgY = (v: number) => priceToSvgY(v, scaleInfo);
+  const slot = slotWidth(scaleInfo);
 
   /* ---------------- timing ---------------- */
 
@@ -84,12 +84,6 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
   });
 
   const annotateAt = introF + wipeF;
-  const zoneIn = interpolate(
-    frame,
-    [annotateAt, annotateAt + sec(TIMING.annotate, fps) / pace],
-    [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE.out },
-  );
 
   const card = scaleIn({ frame, fps, spring: b.motion.entrance, from: 0.97 });
   const header = fadeUp({ frame, fps, delay: sec(0.08, fps), distance: 24 });
@@ -237,35 +231,6 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
               />
             ))}
 
-            {/*
-              Zones sit behind the bars: they're context for the price action,
-              not something laid over the top of it.
-            */}
-            {zones.map((z, i) => {
-              const top = Math.min(pctY(z.from), pctY(z.to));
-              const size = Math.abs(pctY(z.to) - pctY(z.from));
-              return (
-                <div
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: `${top}%`,
-                    height: `${size}%`,
-                    background: `${palette.positive}24`,
-                    borderTop: `${px(2)}px solid ${palette.positive}66`,
-                    borderBottom: `${px(2)}px solid ${palette.positive}66`,
-                    // Grows out from its own centre, so it reads as a band being
-                    // measured rather than a box sliding in.
-                    transform: `scaleY(${zoneIn})`,
-                    transformOrigin: "center",
-                    opacity: zoneIn,
-                  }}
-                />
-              );
-            })}
-
             {/* Bars: four paths, whatever the bar count. */}
             <svg
               viewBox="0 0 100 100"
@@ -314,63 +279,21 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
             ) : null}
 
             {/*
-              Level callouts. Each has a short leader line so the pill can sit
-              clear of the bars while still pointing at an exact price — that's
-              what makes it read as an annotation rather than a floating badge.
+              The analysis: zones, levels, trendlines, arrows and the rest,
+              revealed by the beat sheet. Drawn after the bars so it sits over
+              the price action, in the order the list gives.
             */}
-            {markers.map((m, i) => {
-              const pop = interpolate(
-                frame,
-                [
-                  annotateAt + sec(0.1 + i * 0.09, fps) / pace,
-                  annotateAt + sec(0.45 + i * 0.09, fps) / pace,
-                ],
-                [0, 1],
-                { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE.out },
-              );
-              return (
-                <div
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    right: `${6 + i * 9}%`,
-                    bottom: `${pctY(m.value)}%`,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: px(space.xs),
-                    transform: `translateY(50%) scale(${0.9 + pop * 0.1})`,
-                    opacity: pop,
-                    transformOrigin: "right center",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: px(34),
-                      height: px(2),
-                      background: palette.positive,
-                      transformOrigin: "right center",
-                      transform: `scaleX(${pop})`,
-                    }}
-                  />
-                  <div
-                    style={{
-                      padding: `${px(space.xs)}px ${px(space.md)}px`,
-                      borderRadius: px(radius.sm),
-                      background: palette.positive,
-                      color: palette.ink,
-                      fontFamily: font.numeric,
-                      fontWeight: weight.bold,
-                      fontSize: px(type.caption),
-                      lineHeight: 1,
-                      whiteSpace: "nowrap",
-                      ...tabular,
-                    }}
-                  >
-                    {m.text || format(m.value)}
-                  </div>
-                </div>
-              );
-            })}
+            <AnnotationLayer
+              annotations={annotations}
+              beats={beats}
+              scale={scaleInfo}
+              palette={palette}
+              frame={frame}
+              fps={fps}
+              chartReadyFrame={annotateAt}
+              px={px}
+              decimals={decimals}
+            />
           </div>
 
           {/* ---------------- price axis ---------------- */}

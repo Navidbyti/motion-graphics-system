@@ -173,15 +173,16 @@ const lineChart = defineTemplate({
 
 const priceZone = defineTemplate({
   id: "PriceZone",
-  title: "Price Zone",
-  blurb: "Dense price history with a highlighted band and labelled levels.",
+  title: "Chart Analysis",
+  blurb: "Candles with zones, trendlines and callouts, revealed step by step.",
   tags: ["data", "finance", "analysis"],
   component: PriceZone,
   schema: priceZoneSchema,
   defaults: priceZoneDefaults,
   formats: FORMATS,
   overlay: true,
-  durationInFrames: (props, fps) => Math.round(priceZoneSeconds(props.speed) * fps),
+  durationInFrames: (props, fps) =>
+    Math.round(priceZoneSeconds(props.speed, props.beats) * fps),
 });
 
 const textCard = defineTemplate({
