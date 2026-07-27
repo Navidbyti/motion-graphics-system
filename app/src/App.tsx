@@ -43,7 +43,7 @@ type DesktopBridge = {
   isDesktop: true;
   getVersion: () => Promise<string>;
   checkForUpdates: () => Promise<{ state: string; message?: string }>;
-  installUpdate: () => Promise<void>;
+  installUpdate: () => Promise<{ ok: boolean; message?: string } | void>;
   openFolder: (folder: string) => Promise<string>;
   /** Optional — an older shell may not expose it after an update. */
   openReleases?: () => Promise<void>;
@@ -99,7 +99,23 @@ const SyncButton: React.FC = () => {
   };
 
   const onClick = () => {
-    if (status?.state === "ready") return void desktop.installUpdate();
+    if (status?.state === "ready") {
+      /*
+        The app normally disappears here, so anything this returns means the
+        install did NOT start. Previously the result was discarded and a failed
+        install looked exactly like a successful one — the button simply did
+        nothing.
+      */
+      void desktop.installUpdate().then((r) => {
+        if (r && r.ok === false) {
+          setStatus({
+            state: "error",
+            message: r.message ?? "The installer didn't start.",
+          });
+        }
+      });
+      return;
+    }
     setStatus({ state: "checking" });
     desktop.checkForUpdates().then((r) => {
       if (r.state === "error" || r.state === "dev") {

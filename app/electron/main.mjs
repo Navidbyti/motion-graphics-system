@@ -140,6 +140,8 @@ let mainWindow = null;
 let apiPort = 3131;
 /** The express server, kept so shutdown can close its listening socket. */
 let renderServer = null;
+/** Set while an update is installing, so shutdown handlers stand down. */
+let quittingForUpdate = false;
 
 /**
  * Shut down hard and fast.
@@ -445,7 +447,22 @@ const startRenderServer = () => {
 
   // Closing the window closes the app — and closes it *hard*, so a stale
   // helper process can never block a later install.
-  app.on("window-all-closed", shutdownNow);
+  /*
+    Closing the window closes the app — and closes it *hard*, so a stale helper
+    process can never block a later install.
+
+    The exception is an update in flight. electron-updater closes the window as
+    part of `quitAndInstall`, and exiting the process at that moment kills it
+    before it has spawned the installer: the app simply disappears and nothing
+    installs. While the flag is set, shutdown is electron-updater's job.
+  */
+  app.on("window-all-closed", () => {
+    if (quittingForUpdate) {
+      log("[update] window closed by the updater — leaving shutdown to it");
+      return;
+    }
+    shutdownNow();
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -466,32 +483,47 @@ ipcMain.handle("update:check", async () => {
 
 ipcMain.handle("update:install", async () => {
   /**
-   * Order matters, and getting it wrong is what produced "Motion Graphics
-   * cannot be closed".
+   * Two things have to be true here, and satisfying the first broke the second.
    *
-   * `quitAndInstall` launches the installer immediately and the installer
-   * checks for running instances straight away — so everything that shares the
-   * executable name has to be dead BEFORE this is called, not shortly after.
-   * Previously the server was killed 400ms later and the installer usually won
-   * that race.
+   * The render server must be gone before the installer runs: every Electron
+   * helper shares the executable name, so NSIS cannot tell our utility process
+   * from the app itself and aborts with "Motion Graphics cannot be closed".
+   *
+   * But the app must NOT actually exit until `quitAndInstall` has spawned the
+   * installer. The previous version destroyed the window as part of that
+   * cleanup — which closed the last window, fired `window-all-closed`, and ran
+   * `shutdownNow()` → `app.exit(0)` before `quitAndInstall` was ever reached.
+   * The app closed and no installer appeared. Own cleanup racing own shutdown.
+   *
+   * So: flag the intent first, stop the server, and let electron-updater close
+   * the window itself. `window-all-closed` stands down while the flag is set.
    */
+  quittingForUpdate = true;
+
   try {
     await stopRenderServer();
-    mainWindow?.destroy();
-    mainWindow = null;
   } catch (err) {
-    log("[update] cleanup before install failed", err);
+    log("[update] could not stop the render server", err);
   }
 
   log("[update] launching installer");
-  autoUpdater.quitAndInstall(false, true);
+  try {
+    autoUpdater.quitAndInstall(false, true);
+  } catch (err) {
+    // Put the app back in a usable state rather than leaving it a zombie that
+    // won't close normally either.
+    quittingForUpdate = false;
+    log("[update] quitAndInstall threw", err);
+    return { ok: false, message: String(err?.message ?? err) };
+  }
 
   /*
-    Failsafe. If anything still holds the app open, exit hard — the installer
-    has already been spawned as a detached process by this point, so it
-    survives and completes regardless.
+    Failsafe, and deliberately generous. The installer is spawned detached by
+    the call above, so exiting afterwards cannot interrupt it — but exiting too
+    eagerly can beat it to the spawn, which is the exact bug this handler had.
   */
-  setTimeout(() => app.exit(0), 3000);
+  setTimeout(() => app.exit(0), 8000);
+  return { ok: true };
 });
 
 ipcMain.handle("shell:openFolder", (_event, folder) => shell.openPath(folder));
