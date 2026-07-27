@@ -280,11 +280,47 @@ export const App: React.FC = () => {
   const [subsOpen, setSubsOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
 
+  /**
+   * Keep asking until the render server answers.
+   *
+   * This was a single fetch at mount, and the window opens well before the
+   * server is listening — so the request failed, `health` stayed null, and
+   * nothing ever asked again. The visible symptom was an empty "Export as"
+   * dropdown and an Export button that could not work, for the rest of the
+   * session, with no error anywhere.
+   *
+   * Speeding up startup made it worse rather than better: the window now
+   * appears in a second or two while the server still takes about thirteen, so
+   * the one attempt landed even earlier in the gap.
+   *
+   * Polling stops once the presets arrive — that is the thing the UI actually
+   * needs — and continues on failure so a server that dies and is restarted is
+   * picked up too.
+   */
   useEffect(() => {
-    fetch(api("/api/health"))
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch(() => setHealth(null));
+    let cancelled = false;
+    let timer: number | undefined;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(api("/api/health"));
+        if (response.ok) {
+          const next: Health = await response.json();
+          if (cancelled) return;
+          setHealth(next);
+          if (next.presets?.length) return; // ready — stop asking
+        }
+      } catch {
+        // Not up yet. Expected for the first several seconds after launch.
+      }
+      if (!cancelled) timer = window.setTimeout(poll, 1200);
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, []);
 
   const template = registry.find((t) => t.id === selectedId);

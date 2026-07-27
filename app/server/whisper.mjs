@@ -5,15 +5,16 @@
  * material, and a transcription service would mean shipping it to a third party
  * to save a download.
  *
- * NOT BUNDLED, DOWNLOADED. The installer is already 155 MB, and the models run
+ * NOT BUNDLED, DOWNLOADED. The installer is already 100 MB, and the models run
  * from 142 MB to 1.6 GB — bundling even the smallest would grow the app for
  * every user who never opens this screen, and bundling one big enough for
- * Persian would double the installer. Both the binary and the chosen model are
- * fetched once, into the app's data folder, and reused.
+ * Persian would double the installer. The engine, ffmpeg and the chosen model
+ * are each fetched once, into the app's data folder, and reused.
  *
- * Audio is extracted with Remotion's own compositor rather than ffmpeg. The
- * compositor already ships with the renderer, so this adds nothing to the
- * install and cannot drift from a separately-versioned binary.
+ * ffmpeg is downloaded rather than avoided, having tried twice to avoid it. See
+ * prepareAudio: whisper's own decoder silently produces nothing for Opus, and
+ * Remotion's compositor remuxes rather than transcodes so it cannot convert
+ * either. Neither failure is visible until a real file is used.
  */
 
 import { spawn } from "node:child_process";
@@ -328,26 +329,103 @@ const run = (command, args, options = {}) =>
     });
   });
 
-const AUDIO_EXTENSIONS = new Set([".wav", ".mp3", ".flac", ".ogg"]);
-
 /**
- * whisper.cpp reads wav, mp3, flac and ogg directly and resamples internally,
- * so an audio file needs no preparation. Video does — that is what the
- * compositor extraction is for.
+ * ffmpeg, fetched on demand.
+ *
+ * Two cheaper approaches were tried and neither survives contact with real
+ * files. whisper.cpp advertises wav, mp3, flac and ogg, but that list describes
+ * *containers* and says nothing about the codec inside: a WhatsApp voice note
+ * is Opus in an Ogg container, and whisper's built-in decoder produced no audio
+ * and no error — it exited 0, wrote no transcript, and the failure surfaced as
+ * ENOENT on a file that was never created.
+ *
+ * Remotion's compositor cannot stand in for it either. `extractAudio` remuxes
+ * rather than transcodes, so it refused Opus outright — "Error writing header
+ * ... Input audio codec: AV_CODEC_ID_OPUS" — and would refuse a normal MP4 with
+ * AAC audio for the same reason. That path was broken for video as well.
+ *
+ * So the one tool that actually decodes arbitrary media gets downloaded, once,
+ * the first time something other than a plain WAV is transcribed. It also lets
+ * the audio be handed over as exactly 16 kHz mono PCM, which is what whisper
+ * wants, instead of relying on its internal conversion.
  */
-const prepareAudio = async (source, workDir) => {
-  if (AUDIO_EXTENSIONS.has(path.extname(source).toLowerCase())) return source;
+const FFMPEG_ZIP =
+  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip";
 
-  const { extractAudio } = await import(
-    process.env.MG_ENGINE_ROOT
-      ? new URL(
-          `file:///${path.join(process.env.MG_ENGINE_ROOT, "node_modules", "@remotion", "renderer", "dist", "index.js").replace(/\\/g, "/")}`,
-        ).href
-      : "@remotion/renderer"
+const ffmpegDir = () => path.join(ROOT(), "ffmpeg");
+
+const findFfmpeg = () => {
+  const dir = ffmpegDir();
+  if (!existsSync(dir)) return null;
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (entry.name === "ffmpeg.exe") return full;
+    }
+  }
+  return null;
+};
+
+export const ensureFfmpeg = async (onProgress) => {
+  const existing = findFfmpeg();
+  if (existing) return existing;
+
+  const zip = path.join(ROOT(), "ffmpeg.zip");
+  await download(FFMPEG_ZIP, zip, (percent, received, total) =>
+    onProgress?.({
+      stage: "ffmpeg",
+      percent,
+      message: total
+        ? `${(received / 1048576).toFixed(0)} of ${(total / 1048576).toFixed(0)} MB`
+        : undefined,
+    }),
   );
 
+  onProgress?.({ stage: "ffmpeg", percent: 100, message: "Extracting…" });
+  await run("powershell", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${ffmpegDir()}' -Force`,
+  ]);
+  rmSync(zip, { force: true });
+
+  const found = findFfmpeg();
+  if (!found) throw new Error("Downloaded ffmpeg but couldn't find ffmpeg.exe inside it.");
+  return found;
+};
+
+/**
+ * Anything that is not already a plain WAV is decoded to 16 kHz mono PCM —
+ * whisper's native input format, so nothing is left to its own conversion.
+ */
+const prepareAudio = async (source, workDir, onProgress) => {
+  if (path.extname(source).toLowerCase() === ".wav") return source;
+
+  const ffmpeg = await ensureFfmpeg(onProgress);
   const output = path.join(workDir, "audio.wav");
-  await extractAudio({ videoSource: source, audioOutput: output, logLevel: "error" });
+
+  await run(ffmpeg, [
+    "-hide_banner",
+    "-loglevel", "error",
+    "-i", source,
+    "-vn",            // drop any video stream
+    "-ac", "1",       // mono
+    "-ar", "16000",   // whisper's sample rate
+    "-c:a", "pcm_s16le",
+    "-y",
+    output,
+  ]);
+
+  if (!existsSync(output)) {
+    throw new Error(
+      "Couldn't get any audio out of that file. If it's a video, check it " +
+        "actually has an audio track.",
+    );
+  }
   return output;
 };
 
@@ -519,7 +597,7 @@ export const transcribe = async ({
   mkdirSync(work, { recursive: true });
 
   onProgress?.({ stage: "audio", message: "Extracting audio…" });
-  const audio = await prepareAudio(source, work);
+  const audio = await prepareAudio(source, work, onProgress);
 
   const base = path.basename(source).replace(/\.[^.]+$/, "");
   const stem = path.join(work, "out");
@@ -557,6 +635,19 @@ export const transcribe = async ({
       },
     },
   );
+
+  /*
+    whisper can exit 0 having written nothing — it does that when the decoder
+    handed it silence. Reading the file blind turned that into a raw ENOENT
+    naming a temp path, which tells whoever sees it nothing about what to do.
+  */
+  if (!existsSync(`${stem}.srt`)) {
+    throw new Error(
+      "The transcriber ran but produced no transcript. That usually means no " +
+        "speech was found in the file — check it actually contains audio, and " +
+        "that the language setting matches what is spoken.",
+    );
+  }
 
   const srt = await readFile(`${stem}.srt`, "utf8");
   const cues = parseSrt(srt);

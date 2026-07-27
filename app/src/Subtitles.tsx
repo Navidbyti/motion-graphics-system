@@ -32,8 +32,9 @@ type Job = {
 const STAGE_LABELS: Record<string, string> = {
   starting: "Starting…",
   engine: "Downloading the speech engine (19 MB, once)",
+  ffmpeg: "Downloading the audio converter (72 MB, once)",
   model: "Downloading the language model (once)",
-  audio: "Extracting audio",
+  audio: "Converting audio",
   transcribe: "Transcribing",
 };
 

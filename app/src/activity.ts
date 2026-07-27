@@ -82,6 +82,7 @@ const fromJob = (kind: ActivityKind, raw: Record<string, unknown>): Partial<Acti
   const STAGES: Record<string, string> = {
     starting: "Starting",
     engine: "Downloading engine",
+    ffmpeg: "Downloading converter",
     model: "Downloading model",
     audio: "Extracting audio",
     transcribe: "Transcribing",
