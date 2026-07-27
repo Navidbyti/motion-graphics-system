@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "./api";
+import { api, getWhenReady } from "./api";
 import { getActivity, trackJob, useActivities } from "./activity";
 
 type Model = { id: string; label: string; mb: number; note: string };
@@ -61,15 +61,20 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [error, setError] = useState<string | null>(null);
   useActivities(); // re-render as the shared store updates
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    fetch(api("/api/whisper/status"))
-      .then((r) => r.json())
+    // Retries until the render server is up — see getWhenReady.
+    getWhenReady<{ models: Model[]; languages: Language[]; installed: string[] }>(
+      "/api/whisper/status",
+    )
       .then((d) => {
         setModels(d.models ?? []);
         setLanguages(d.languages ?? []);
         setInstalled(d.installed ?? []);
       })
-      .catch(() => setError("Couldn't reach the render server."));
+      .catch((err) => setError(String(err?.message ?? err)))
+      .finally(() => setLoading(false));
   }, []);
 
   const pick = async () => {
@@ -182,8 +187,8 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         </label>
       </div>
 
-      <button className="primary subs-go" onClick={start} disabled={!source || busy}>
-        {busy ? "Working…" : "Transcribe"}
+      <button className="primary subs-go" onClick={start} disabled={!source || busy || loading}>
+        {busy ? "Working…" : loading ? "Starting the engine…" : "Transcribe"}
       </button>
 
       {busy ? (

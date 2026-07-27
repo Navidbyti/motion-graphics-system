@@ -72,8 +72,7 @@
       "icon": "build-resources/icon.png"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
       "createDesktopShortcut": true,
       "shortcutName": "Motion Graphics",
       "allowElevation": true,

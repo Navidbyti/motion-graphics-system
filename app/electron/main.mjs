@@ -526,14 +526,15 @@ ipcMain.handle("update:install", async () => {
   log("[update] launching installer");
   try {
     /*
-      Silent, and relaunch afterwards.
+      NOT silent — but not a wizard either.
 
-      `isSilent: false` shows NSIS's own wizard — a second, unexplained window
-      appearing after the app disappears, with Next buttons for a decision
-      nobody is making. Silent installs and reopens the app, which is what
-      "update" is supposed to mean.
+      The installer is now one-click (see package.json build.nsis), which means
+      "not silent" shows a single compact progress window rather than a series
+      of Next buttons. A fully silent install left the app simply vanishing for
+      a couple of minutes with nothing on screen at all, which reads as a crash.
+      This way the progress bar continues where the in-app one left off.
     */
-    autoUpdater.quitAndInstall(true, true);
+    autoUpdater.quitAndInstall(false, true);
   } catch (err) {
     // Put the app back in a usable state rather than leaving it a zombie that
     // won't close normally either.

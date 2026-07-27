@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "./api";
+import { api, getWhenReady } from "./api";
 
 type Asset = { id: string; label: string };
 type Timeframe = { id: string; label: string };
@@ -52,13 +52,13 @@ export const MarketFetch: React.FC<{
 
   useEffect(() => {
     if (!open || assets.length) return;
-    fetch(api("/api/market/assets"))
-      .then((r) => r.json())
+    // Retries until the render server is up — see getWhenReady.
+    getWhenReady<{ assets: Asset[]; timeframes: Timeframe[] }>("/api/market/assets")
       .then((d) => {
         setAssets(d.assets ?? []);
         setTimeframes(d.timeframes ?? []);
       })
-      .catch(() => setError("Couldn't reach the render server."));
+      .catch((err) => setError(String(err?.message ?? err)));
   }, [open, assets.length]);
 
   const fetchNow = async () => {
