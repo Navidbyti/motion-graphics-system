@@ -383,3 +383,22 @@ td input { padding: 4px 6px; }
   background: var(--raised); border: 1px solid var(--line); border-radius: 8px;
 }
 .upload-btn input { display: none; }
+
+/* ---------------- annotation editor ---------------- */
+
+.annots { display: grid; gap: 10px; }
+.annot {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px; background: var(--raised);
+}
+.annot-head { margin-bottom: 8px; }
+.annot-head .btn-group { gap: 2px; }
+.annot-head .link { text-decoration: none; font-size: 13px; padding: 0 4px; }
+.annot-del { color: var(--bad) !important; }
+.annot-grid { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.annot-grid .field { min-width: 0; }
+/* A point is two numbers that belong together — candle and price. */
+.annot-point { display: grid; gap: 6px; grid-column: 1 / -1; }
+.annot-point-row { display: grid; grid-template-columns: 80px 1fr; gap: 6px; }
+.annot-add { display: flex; gap: 8px; margin-top: 4px; }
+.annot-add select { flex: 1; }

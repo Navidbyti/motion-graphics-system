@@ -26,6 +26,7 @@ export type FieldKind =
       minItems?: number;
       maxItems?: number;
     }
+  | { kind: "variantArray" }
   | { kind: "unsupported" };
 
 /** Strips wrappers that don't change how a field is edited. */
@@ -69,6 +70,15 @@ export const inspect = (schema: any): FieldKind => {
   if (t === "ZodEnum") return { kind: "enum", values: s._def.values };
   if (t === "ZodArray") {
     const inner = unwrap(s._def.type);
+    /*
+      An array of a discriminated union cannot be a table: the columns depend on
+      which variant each row is. It gets its own editor rather than falling
+      through to "unsupported", which is what left the chart's annotations
+      visible in the preview and impossible to delete.
+    */
+    if (inner?._def?.typeName === "ZodDiscriminatedUnion") {
+      return { kind: "variantArray" };
+    }
     if (inner?._def?.typeName === "ZodObject") {
       const shape = inner._def.shape();
       return {

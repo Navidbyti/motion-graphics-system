@@ -12,6 +12,7 @@
 
 import { useMemo, useState } from "react";
 import type { z } from "zod";
+import { AnnotationEditor } from "./AnnotationEditor";
 import { MarketFetch, type MarketShape } from "./MarketFetch";
 import { fieldEntries, humanise } from "./schemaIntrospect";
 
@@ -243,6 +244,17 @@ export const SchemaForm: React.FC<{
   const set = (key: string, v: unknown) => onChange({ ...value, [key]: v });
 
   /**
+   * Apply several fields in ONE update.
+   *
+   * Two `set` calls in the same tick both spread the same `value`, so the
+   * second silently discards the first. Deleting an annotation did exactly
+   * that: the orphaned beat was removed and the annotation itself came back,
+   * because the beats update overwrote it.
+   */
+  const setMany = (changes: Record<string, unknown>) =>
+    onChange({ ...value, ...changes });
+
+  /**
    * A market fetch fills more than the data array.
    *
    * The instrument's decimal places and its name are part of the same fact —
@@ -339,6 +351,22 @@ export const SchemaForm: React.FC<{
                 </option>
               ))}
             </select>
+          ) : null}
+
+          {kind.kind === "variantArray" ? (
+            <AnnotationEditor
+              value={(value[key] as never) ?? []}
+              bars={(value.bars as { high: number; low: number }[]) ?? []}
+              onChange={(next, removedId) => {
+                // One update, not two — see setMany.
+                const changes: Record<string, unknown> = { [key]: next };
+                const beats = value.beats as { target: string }[] | undefined;
+                if (removedId && beats) {
+                  changes.beats = beats.filter((b) => b.target !== removedId);
+                }
+                setMany(changes);
+              }}
+            />
           ) : null}
 
           {kind.kind === "objectArray" ? (
