@@ -115,8 +115,8 @@ export const priceZoneDefaults: PriceZoneProps = {
     and "here is what this template is for" is worth more than an empty chart.
   */
   annotations: [
-    { id: "supply", kind: "zone", from: 1.179, to: 1.1921, color: "#E4572E", label: "Supply" },
-    { id: "demand", kind: "zone", from: 1.107, to: 1.1193, color: "#1FA463", label: "Demand" },
+    { id: "supply", kind: "zone", from: 1.179, to: 1.1921, color: "#E4572E", label: "Supply", opacity: 0.55 },
+    { id: "demand", kind: "zone", from: 1.107, to: 1.1193, color: "#1FA463", label: "Demand", opacity: 0.55 },
     {
       id: "trend",
       kind: "channel",
@@ -124,8 +124,9 @@ export const priceZoneDefaults: PriceZoneProps = {
       b: { index: 96, price: 1.1735 },
       offset: 0.021,
       extend: false,
+      opacity: 0.55,
     },
-    { id: "note", kind: "note", at: { index: 150, price: 1.1465 }, label: "Rejected" },
+    { id: "note", kind: "note", at: { index: 150, price: 1.1465 }, label: "Rejected", opacity: 1 },
   ],
 
   beats: [

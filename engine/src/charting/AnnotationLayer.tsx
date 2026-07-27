@@ -16,6 +16,7 @@ import type { BrandPalette } from "../brand/brands";
 import {
   type Annotation,
   type Beat,
+  annotationAlpha,
   beatProgress,
 } from "./annotations";
 import {
@@ -96,9 +97,12 @@ export const AnnotationLayer: React.FC<Props> = ({
     if (progress <= 0) return;
 
     const tone = a.color ?? palette.primary;
+    // One dial, two alphas — a fill and a stroke cannot share a number.
+    const alpha = annotationAlpha(a.opacity);
     const key = `${a.kind}-${a.id}-${order}`;
     // Fade and pop both just ramp opacity; draw and wipe are per-shape below.
-    const opacity = effect === "draw" || effect === "wipe" ? 1 : progress;
+    const reveal = effect === "draw" || effect === "wipe" ? 1 : progress;
+    const opacity = reveal * alpha.line;
 
     switch (a.kind) {
       case "zone": {
@@ -113,15 +117,15 @@ export const AnnotationLayer: React.FC<Props> = ({
 
         shapes.push(
           <g key={key} opacity={opacity}>
-            <rect x={x0} y={top} width={width} height={height} fill={tone} fillOpacity={0.11} />
-            <rect x={x0} y={top} width={width} height={0.18} fill={tone} fillOpacity={0.5} />
+            <rect x={x0} y={top} width={width} height={height} fill={tone} fillOpacity={alpha.fill} />
+            <rect x={x0} y={top} width={width} height={0.18} fill={tone} fillOpacity={alpha.line} />
             <rect
               x={x0}
               y={top + height - 0.18}
               width={width}
               height={0.18}
               fill={tone}
-              fillOpacity={0.5}
+              fillOpacity={alpha.line}
             />
           </g>,
         );
@@ -251,7 +255,7 @@ export const AnnotationLayer: React.FC<Props> = ({
             <polygon
               points={`${ax},${ay} ${e1.x2},${e1.y2} ${e2.x2},${e2.y2} ${ax},${ay2}`}
               fill={tone}
-              fillOpacity={0.1}
+              fillOpacity={alpha.fill}
             />
             <line x1={ax} y1={ay} x2={e1.x2} y2={e1.y2} stroke={tone} strokeWidth={stroke} vectorEffect="non-scaling-stroke" strokeLinecap="round" />
             <line x1={ax} y1={ay2} x2={e2.x2} y2={e2.y2} stroke={tone} strokeWidth={stroke} vectorEffect="non-scaling-stroke" strokeLinecap="round" />

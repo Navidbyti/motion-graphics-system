@@ -32,6 +32,18 @@ const base = {
   id: z.string().describe("Internal — used by the beat sheet"),
   label: z.string().max(40).optional().describe("Text shown on it"),
   color: zColor().optional(),
+
+  /**
+   * How strongly this annotation reads, 0–1.
+   *
+   * Not a plain alpha multiplier, because that could only ever make things
+   * fainter — and a band drawn over busy candles sometimes needs to be MORE
+   * solid, not less. The value is mapped separately onto fills and lines (see
+   * annotationAlpha): fills run 0 → 0.22 so the default sits at the light wash
+   * used before, and lines stay legible across the whole range rather than
+   * disappearing at the bottom of the dial.
+   */
+  opacity: z.number().min(0).max(1).default(0.55).describe("Transparency, 0 = invisible"),
 };
 
 export const annotationSchema = z.discriminatedUnion("kind", [
@@ -146,6 +158,19 @@ export const annotationSchema = z.discriminatedUnion("kind", [
     toIndex: z.number(),
   }),
 ]);
+
+/**
+ * Turn the single `opacity` dial into the two alphas the renderer needs.
+ *
+ * A fill and a stroke cannot share a number: at the fill's usable range a line
+ * is nearly invisible, and at the line's the fill is a solid block hiding the
+ * price action. So fills scale to a maximum of 0.22 and lines never drop below
+ * 0.45 — the dial changes emphasis without ever producing something unreadable.
+ */
+export const annotationAlpha = (opacity = 0.55) => ({
+  fill: opacity * 0.22,
+  line: 0.45 + opacity * 0.55,
+});
 
 export type Annotation = z.infer<typeof annotationSchema>;
 export type AnnotationKind = Annotation["kind"];
