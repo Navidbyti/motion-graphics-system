@@ -37,6 +37,8 @@ type Health = {
 // See api.ts — the base URL differs between dev (Vite proxy) and the packaged
 // app (file:// origin, where a relative /api path resolves to nothing).
 import { api } from "./api";
+import { ActivityBar } from "./ActivityBar";
+import { getActivity, trackJob, useActivities } from "./activity";
 
 /** Bridge exposed by electron/preload.cjs. Absent when running in a browser. */
 type DesktopBridge = {
@@ -323,6 +325,7 @@ export const App: React.FC = () => {
         >
           {settingsOpen ? "Close" : "Theme"}
         </button>
+        <ActivityBar />
         <SyncButton />
       </header>
 
@@ -451,13 +454,11 @@ const EditScreen: React.FC<{
         ? BACKDROPS.checker
         : BACKDROPS[backdrop];
   const [preset, setPreset] = useState("overlay");
-  const [job, setJob] = useState<{
-    id: string;
-    status: string;
-    progress: number;
-    outputPath: string;
-    error?: string;
-  } | null>(null);
+  /*
+    Only the id is local. The job's state lives in the shared activity store so
+    it survives leaving this screen — see activity.ts.
+  */
+  const [jobId, setJobId] = useState<string | null>(null);
 
   const duration = useMemo(() => {
     try {
@@ -493,17 +494,27 @@ const EditScreen: React.FC<{
     };
   }, [props, customTheme]);
 
-  // Poll while a render is in flight. One editor, one job — no websocket needed.
-  useEffect(() => {
-    if (!job || job.status !== "rendering") return;
-    const timer = setInterval(async () => {
-      const res = await fetch(api(`/api/job/${job.id}`));
-      if (!res.ok) return;
-      const next = await res.json();
-      setJob((j) => (j ? { ...j, ...next } : j));
-    }, 700);
-    return () => clearInterval(timer);
-  }, [job]);
+  /*
+    Progress comes from the shared activity store, not a local interval.
+    Polling here meant leaving the edit screen killed it: the render carried on
+    server-side while the UI forgot the job existed.
+  */
+  useActivities();
+  const activity = getActivity(jobId);
+  const job = activity
+    ? {
+        id: activity.id,
+        status:
+          activity.state === "done"
+            ? "done"
+            : activity.state === "error"
+              ? "failed"
+              : "rendering",
+        progress: (activity.percent ?? 0) / 100,
+        outputPath: activity.outputPath,
+        error: activity.error,
+      }
+    : null;
 
   const exportNow = async () => {
     const res = await fetch(api("/api/export"), {
@@ -517,7 +528,8 @@ const EditScreen: React.FC<{
       }),
     });
     const data = await res.json();
-    setJob({ id: data.jobId, status: "rendering", progress: 0, outputPath: data.outputPath });
+    setJobId(data.jobId);
+    trackJob(data.jobId, "export", `${template.title} · ${format}`);
   };
 
   return (

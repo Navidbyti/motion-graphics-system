@@ -10,8 +10,9 @@
  * slow line looks identical to a hung app unless the screen says which it is.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api";
+import { getActivity, trackJob, useActivities } from "./activity";
 
 type Model = { id: string; label: string; mb: number; note: string };
 type Language = { id: string; label: string };
@@ -50,9 +51,14 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [language, setLanguage] = useState("auto");
   const [fps, setFps] = useState(30);
 
-  const [job, setJob] = useState<Job | null>(null);
+  /*
+    The job id is remembered, not the job. State lives in the shared activity
+    store, so closing this screen no longer discards it — the transcription
+    keeps running and reopening shows exactly where it got to.
+  */
+  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<number | null>(null);
+  useActivities(); // re-render as the shared store updates
 
   useEffect(() => {
     fetch(api("/api/whisper/status"))
@@ -63,9 +69,6 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         setInstalled(d.installed ?? []);
       })
       .catch(() => setError("Couldn't reach the render server."));
-    return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
-    };
   }, []);
 
   const pick = async () => {
@@ -75,7 +78,7 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const chosen = await desktop.pickMedia();
     if (chosen) {
       setSource(chosen);
-      setJob(null);
+      setJobId(null);
       setError(null);
     }
   };
@@ -83,7 +86,6 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const start = async () => {
     if (!source) return;
     setError(null);
-    setJob({ status: "working", stage: "starting" });
 
     try {
       const response = await fetch(api("/api/whisper/transcribe"), {
@@ -92,29 +94,16 @@ export const Subtitles: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         body: JSON.stringify({ source, model, language, fps }),
       });
       const { id } = await response.json();
-
-      if (pollRef.current) window.clearInterval(pollRef.current);
-      pollRef.current = window.setInterval(async () => {
-        const res = await fetch(api(`/api/job/${id}`));
-        if (!res.ok) return;
-        const next: Job = await res.json();
-        setJob(next);
-        if (next.status !== "working" && pollRef.current) {
-          window.clearInterval(pollRef.current);
-          pollRef.current = null;
-          // Refresh which models are on disk — one more is now cached.
-          fetch(api("/api/whisper/status"))
-            .then((r) => r.json())
-            .then((d) => setInstalled(d.installed ?? []));
-        }
-      }, 600);
+      setJobId(id);
+      trackJob(id, "subtitles", source.split(/[\\/]/).pop() ?? "clip");
     } catch (err) {
-      setJob(null);
       setError(String((err as Error)?.message ?? err));
     }
   };
 
-  const busy = job?.status === "working";
+  const activity = getActivity(jobId);
+  const job = (activity?.raw ?? null) as Job | null;
+  const busy = activity?.state === "working";
   const chosen = models.find((m) => m.id === model);
   const cached = chosen ? installed.includes(chosen.id) : false;
 

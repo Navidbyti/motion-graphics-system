@@ -78,6 +78,28 @@ input[type="range"] { padding: 0; }
 .sync-main { display: flex; align-items: center; gap: 10px; }
 .sync button { padding: 5px 12px; font-size: 13px; }
 /* A failed sync states the reason and offers a way out. */
+/* ---------------- activity strip ---------------- */
+
+/*
+ * Sits in the top bar, so it is visible from every screen. Pushed to the right
+ * with `margin-left: auto` so it and the Sync block stay together regardless of
+ * how wide the left-hand controls get.
+ */
+.activity { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+.activity-item { display: grid; gap: 3px; min-width: 190px; max-width: 260px; }
+.activity-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.activity-kind { font-weight: 600; }
+/* A file name or template title can be long; keep the strip a fixed height. */
+.activity-label {
+  flex: 1; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; font-size: 11px;
+}
+.activity-stage { font-size: 11px; }
+.activity-dismiss { text-decoration: none; font-size: 12px; }
+.activity-item.error .activity-kind { color: var(--bad); }
+.activity-item.done .activity-kind { color: var(--ok); }
+.activity .bar { height: 4px; }
+
 .update-progress { display: grid; gap: 4px; justify-items: end; min-width: 220px; }
 .update-progress .bar { width: 220px; }
 .sync-error { display: flex; align-items: center; gap: 8px; max-width: 520px; }
