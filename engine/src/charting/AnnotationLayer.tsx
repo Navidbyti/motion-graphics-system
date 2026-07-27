@@ -67,7 +67,8 @@ export const AnnotationLayer: React.FC<Props> = ({
   decimals,
 }) => {
   const format = (v: number) => v.toFixed(decimals);
-  const stroke = px(3);
+  // Thin enough to read as annotation rather than as part of the chart.
+  const stroke = px(2.2);
 
   /** Where a label sits, as percentages over the plot box. */
   const labels: {
@@ -78,6 +79,8 @@ export const AnnotationLayer: React.FC<Props> = ({
     color: string;
     opacity: number;
     align: "left" | "right";
+    /** Draws a short tick from the tag to the thing it names. */
+    leader?: boolean;
   }[] = [];
 
   const shapes: React.ReactNode[] = [];
@@ -99,8 +102,10 @@ export const AnnotationLayer: React.FC<Props> = ({
 
     switch (a.kind) {
       case "zone": {
-        const top = Math.min(priceToSvgY(a.from, scale), priceToSvgY(a.to, scale));
-        const height = Math.abs(priceToSvgY(a.to, scale) - priceToSvgY(a.from, scale));
+        const yTo = priceToSvgY(a.to, scale);
+        const yFrom = priceToSvgY(a.from, scale);
+        const top = Math.min(yTo, yFrom);
+        const height = Math.abs(yFrom - yTo);
         const x0 = a.fromIndex != null ? indexToSvgX(a.fromIndex, scale) : 0;
         const x1 = a.toIndex != null ? indexToSvgX(a.toIndex, scale) : 100;
         // Wipe grows the band from its left edge; anything else fades it in.
@@ -108,35 +113,42 @@ export const AnnotationLayer: React.FC<Props> = ({
 
         shapes.push(
           <g key={key} opacity={opacity}>
-            <rect x={x0} y={top} width={width} height={height} fill={tone} fillOpacity={0.18} />
-            <rect x={x0} y={top} width={width} height={0.35} fill={tone} fillOpacity={0.55} />
+            <rect x={x0} y={top} width={width} height={height} fill={tone} fillOpacity={0.11} />
+            <rect x={x0} y={top} width={width} height={0.18} fill={tone} fillOpacity={0.5} />
             <rect
               x={x0}
-              y={top + height - 0.35}
+              y={top + height - 0.18}
               width={width}
-              height={0.35}
+              height={0.18}
               fill={tone}
-              fillOpacity={0.55}
+              fillOpacity={0.5}
             />
           </g>,
         );
 
         /*
-          Only labelled if a label was asked for. Auto-generating one from the
-          band's own prices put a wide pill across the candles on every zone,
-          which is noise — the axis already shows the prices.
+          One tag per EDGE, not one in the middle.
+
+          A band is defined by two prices and a trader reads both of them, so a
+          single label averaging them answers a question nobody asked. The
+          reference charts everyone is used to tag the top and the bottom
+          separately, each pointing at its own line.
         */
-        if (a.label) {
+        [
+          { price: a.to, suffix: a.label ? ` ${a.label}` : "" },
+          { price: a.from, suffix: "" },
+        ].forEach((edge, n) => {
           labels.push({
-            key: `${key}-label`,
+            key: `${key}-edge-${n}`,
             left: 100,
-            bottom: priceToPct((a.from + a.to) / 2, scale),
-            text: a.label,
+            bottom: priceToPct(edge.price, scale),
+            text: `${format(edge.price)}${edge.suffix}`,
             color: tone,
             opacity: progress,
             align: "right",
+            leader: true,
           });
-        }
+        });
         break;
       }
 
@@ -448,18 +460,35 @@ export const AnnotationLayer: React.FC<Props> = ({
               ? { right: 0, transform: "translate(0, 50%)" }
               : { left: `${l.left}%`, transform: "translate(-50%, 50%)" }),
             opacity: l.opacity,
-            background: l.color,
-            color: palette.paper,
-            padding: `${px(6)}px ${px(14)}px`,
-            borderRadius: px(8),
-            fontSize: px(30),
-            fontWeight: 700,
-            whiteSpace: "nowrap",
-            fontVariantNumeric: "tabular-nums",
+            display: "flex",
+            alignItems: "center",
+            gap: px(6),
             pointerEvents: "none",
           }}
         >
-          {l.text}
+          {/*
+            A short tick joining the tag to the line it names. Without it a tag
+            floating beside the chart has to be matched to its level by eye,
+            which is exactly the moment a viewer stops listening.
+          */}
+          {l.leader ? (
+            <div style={{ width: px(26), height: px(2), background: l.color, opacity: 0.7 }} />
+          ) : null}
+          <div
+            style={{
+              background: l.color,
+              color: palette.paper,
+              padding: `${px(4)}px ${px(10)}px`,
+              borderRadius: px(6),
+              fontSize: px(24),
+              fontWeight: 600,
+              letterSpacing: px(-0.4),
+              whiteSpace: "nowrap",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {l.text}
+          </div>
         </div>
       ))}
     </>
