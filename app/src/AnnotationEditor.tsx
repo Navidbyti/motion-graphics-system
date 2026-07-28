@@ -6,13 +6,15 @@
  * which shape it is. Without this the list rendered as "no editor for this
  * field type" — the zones were visible in the preview and impossible to delete.
  *
- * Deliberately a list rather than a canvas. Drawing with the mouse is the better
- * interface and is still coming; this exists because being unable to remove a
- * shape is a worse problem than being unable to draw one elegantly.
+ * This is now the numbers half of the interface. Placing shapes happens on the
+ * stage in Build mode, where you can see the chart; the "pick" links here
+ * switch to it and arm the field. Both halves stay, because typing an exact
+ * level you already know is faster than aiming at it, and dragging a shape into
+ * place is faster than guessing at a number.
  */
 
 import { useState } from "react";
-import { ChartPicker } from "./ChartPicker";
+import { setPicking, setSelected, useEditing } from "./editing";
 
 type Point = { index: number; price: number };
 type Annotation = Record<string, unknown> & { id: string; kind: string };
@@ -113,24 +115,38 @@ export const AnnotationEditor: React.FC<{
   onChange: (v: Annotation[], removedId?: string) => void;
   /** Used to place new shapes somewhere visible rather than at zero. */
   bars: { open: number; high: number; low: number; close: number }[];
-  /** Empty slots at the right, so the picker matches what renders. */
+  /** Empty slots at the right, so new shapes land where they render. */
   futureBars?: number;
-}> = ({ value, onChange, bars, futureBars = 0 }) => {
+}> = ({ value, onChange, bars }) => {
   const [adding, setAdding] = useState("zone");
 
   /*
-    Which field is waiting for a click. One at a time: two armed targets and a
-    click has no unambiguous meaning.
+    Which field is waiting for a click, and which shape is highlighted. Shared
+    with the stage rather than held here: the click that answers lands over
+    there, on a component this one does not contain.
   */
-  const [picking, setPicking] = useState<
-    { row: number; field: string; label: string } | null
-  >(null);
+  const { picking, selected } = useEditing();
 
   const prices = bars.flatMap((b) => [b.high, b.low]);
   const midPrice = prices.length
     ? (Math.min(...prices) + Math.max(...prices)) / 2
     : 100;
   const midIndex = Math.max(bars.length - 1, 1) / 2;
+
+  /**
+   * Send this field to the stage and wait for a click there.
+   *
+   * Selecting first, then arming: `setSelected` clears any armed field, since
+   * changing which shape you are working on has to invalidate a click aimed at
+   * the last one. Doing it the other way round disarms what we just armed.
+   */
+  const arm = (i: number, field: string, label: string) => {
+    setSelected(value[i]?.id ?? null);
+    setPicking({ row: i, field, label });
+  };
+
+  const armed = (i: number, field: string) =>
+    picking?.row === i && picking.field === field;
 
   const patch = (i: number, changes: Record<string, unknown>) =>
     onChange(value.map((a, n) => (n === i ? { ...a, ...changes } : a)));
@@ -159,7 +175,12 @@ export const AnnotationEditor: React.FC<{
       {value.map((a, i) => {
         const numeric = FIELDS[a.kind] ?? [];
         return (
-          <div className="annot" key={a.id ?? i}>
+          <div
+            className={`annot${a.id === selected ? " on" : ""}`}
+            key={a.id ?? i}
+            // Clicking a card is how you choose what the stage puts handles on.
+            onClick={() => setSelected(a.id)}
+          >
             <div className="row-between annot-head">
               <strong className="small">
                 {KINDS.find((k) => k[0] === a.kind)?.[1].split(" — ")[0] ?? a.kind}
@@ -188,10 +209,10 @@ export const AnnotationEditor: React.FC<{
                         way to enter one you already know. */}
                     {f.step !== 1 ? (
                       <button
-                        className="link pick"
-                        onClick={() => setPicking({ row: i, field: f.key, label: f.label })}
+                        className={`link pick${armed(i, f.key) ? " on" : ""}`}
+                        onClick={() => arm(i, f.key, f.label)}
                       >
-                        pick
+                        {armed(i, f.key) ? "click the chart…" : "pick"}
                       </button>
                     ) : null}
                   </span>
@@ -212,16 +233,16 @@ export const AnnotationEditor: React.FC<{
                       <span className="field-label">
                         {pk === "a" ? "Start" : pk === "b" ? "End" : "Position"}
                         <button
-                          className="link pick"
+                          className={`link pick${armed(i, pk) ? " on" : ""}`}
                           onClick={() =>
-                            setPicking({
-                              row: i,
-                              field: pk,
-                              label: pk === "a" ? "start" : pk === "b" ? "end" : "position",
-                            })
+                            arm(
+                              i,
+                              pk,
+                              pk === "a" ? "start" : pk === "b" ? "end" : "position",
+                            )
                           }
                         >
-                          pick
+                          {armed(i, pk) ? "click the chart…" : "pick"}
                         </button>
                       </span>
                       <div className="annot-point-row">
@@ -254,12 +275,10 @@ export const AnnotationEditor: React.FC<{
                   <span className="field-label">
                     Path — {((a.points as unknown[]) ?? []).length} points
                     <button
-                      className="link pick"
-                      onClick={() =>
-                        setPicking({ row: i, field: "points", label: "next point" })
-                      }
+                      className={`link pick${armed(i, "points") ? " on" : ""}`}
+                      onClick={() => arm(i, "points", "next point")}
                     >
-                      click to add
+                      {armed(i, "points") ? "click the chart…" : "click to add"}
                     </button>
                     <button
                       className="link"
@@ -348,40 +367,6 @@ export const AnnotationEditor: React.FC<{
           </div>
         );
       })}
-
-      {picking ? (
-        <ChartPicker
-          bars={bars}
-          futureBars={futureBars}
-          prompt={`Click to set the ${picking.label}`}
-          existing={
-            // A projection is a path; showing the points already placed is the
-            // difference between plotting a shape and guessing at one.
-            (value[picking.row]?.points as { index: number; price: number }[]) ?? []
-          }
-          onCancel={() => setPicking(null)}
-          onPick={(point) => {
-            const row = picking.row;
-            const field = picking.field;
-            const current = value[row];
-            if (!current) return setPicking(null);
-
-            if (field === "a" || field === "b" || field === "at") {
-              patch(row, { [field]: point });
-            } else if (field === "points") {
-              // Appends rather than replaces: a projection is built by clicking
-              // along the path, not by setting one point at a time.
-              const pts = (current.points as { index: number; price: number }[]) ?? [];
-              patch(row, { points: [...pts, point] });
-              return; // stay armed so the next click adds the next point
-            } else {
-              // A plain price field takes only the price; its index is fixed.
-              patch(row, { [field]: point.price });
-            }
-            setPicking(null);
-          }}
-        />
-      ) : null}
 
       <div className="annot-add">
         <select value={adding} onChange={(e) => setAdding(e.target.value)}>

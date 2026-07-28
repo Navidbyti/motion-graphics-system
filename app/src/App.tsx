@@ -11,6 +11,8 @@ import { formats } from "@engine/brand/tokens";
 import { FPS } from "@engine/Root";
 import { compositionId, registry, type FormatName } from "@engine/registry";
 import { SchemaForm } from "./SchemaForm";
+import { BuildStage } from "./BuildStage";
+import { clearEditing, setMode, useEditing } from "./editing";
 import { ColourTuner } from "./ColourTuner";
 import { Docs } from "./Docs";
 import { Subtitles } from "./Subtitles";
@@ -440,6 +442,27 @@ const EditScreen: React.FC<{
   );
   const [format, setFormat] = useState<FormatName>("vertical");
   const [backdrop, setBackdrop] = useState<Backdrop>("checker");
+
+  /**
+   * Build or Preview.
+   *
+   * Preview is the render — animated, exact, and untouchable. Build freezes it
+   * and hands back the geometry so shapes can be dragged where they go. They
+   * are separate states rather than an overlay because the two want opposite
+   * things: a preview must show the finished frame and nothing else, an editor
+   * must show handles, guides and things that will never be exported.
+   *
+   * Held in the shared store because the panel changes it too — pressing "pick"
+   * on a field has to take you to the surface you can click.
+   */
+  const { mode } = useEditing();
+
+  /** Only a chart has anything to build. Everything else is preview-only. */
+  const buildable =
+    Array.isArray(props.bars) && Array.isArray(props.annotations);
+
+  // The store outlives this screen, so leaving has to put it back.
+  useEffect(() => clearEditing, []);
   /**
    * "fit" scales the preview to the available space; a number is an explicit
    * zoom where the canvas scrolls. Vertical compositions are much taller than
@@ -574,6 +597,25 @@ const EditScreen: React.FC<{
         <div className="stage-bar">
           <button onClick={onBack}>‹ Library</button>
 
+          {buildable ? (
+            <div className="btn-group mode-switch">
+              <button
+                className={mode === "build" ? "active" : ""}
+                onClick={() => setMode("build")}
+                title="Place and drag shapes directly on the chart"
+              >
+                Build
+              </button>
+              <button
+                className={mode === "preview" ? "active" : ""}
+                onClick={() => setMode("preview")}
+                title="Play the finished animation"
+              >
+                Preview
+              </button>
+            </div>
+          ) : null}
+
           <div className="btn-group">
             {(Object.keys(formats) as FormatName[]).map((f) => (
               <button
@@ -699,17 +741,28 @@ const EditScreen: React.FC<{
                   }
             }
           >
-            <Player
-              component={template.component}
-              inputProps={renderProps}
-              durationInFrames={duration}
-              fps={FPS}
-              compositionWidth={formats[format].width}
-              compositionHeight={formats[format].height}
-              style={{ width: "100%", height: "100%" }}
-              controls
-              loop
-            />
+            {mode === "build" && buildable ? (
+              <BuildStage
+                bars={props.bars as never}
+                futureBars={Number(props.futureBars ?? 0)}
+                annotations={(props.annotations as never) ?? []}
+                onChange={(next) =>
+                  setProps((p) => ({ ...p, annotations: next as never }))
+                }
+              />
+            ) : (
+              <Player
+                component={template.component}
+                inputProps={renderProps}
+                durationInFrames={duration}
+                fps={FPS}
+                compositionWidth={formats[format].width}
+                compositionHeight={formats[format].height}
+                style={{ width: "100%", height: "100%" }}
+                controls
+                loop
+              />
+            )}
           </div>
         </div>
       </section>
