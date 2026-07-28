@@ -391,40 +391,111 @@ export const AnnotationLayer: React.FC<Props> = ({
 
       case "projection": {
         /*
-          Five separate signals that this is not data: its own colour, a dashed
-          path, hollow markers, a boundary rule at the last real candle, and a
-          tag that cannot be turned off. Any one of them alone could be missed
-          on a phone screen at speed.
+          Rendered as CANDLES, not a line.
+
+          The points are the prediction; the candles are how price actually
+          looks, and a polyline beside a candle chart reads as an annotation
+          rather than as "here is what happens next". So each whole bar index
+          between the first and last point gets an OHLC built from the path.
+
+          Every signal that this is opinion is kept: its own colour, HOLLOW
+          bodies, a boundary rule where history stops, and a "Projection" tag
+          that cannot be turned off. Hollow is the load-bearing one — filled
+          bodies in any colour read as data at a glance.
         */
-        const pts = a.points.map((p) => ({
-          x: indexToSvgX(p.index, scale),
-          y: priceToSvgY(p.price, scale),
-        }));
+        const pts = [...a.points].sort((p, q) => p.index - q.index);
         if (pts.length < 2) break;
 
-        // Grow the path point by point rather than fading it in — a forecast
-        // reads as a forecast when you watch it being extended.
-        const span = (pts.length - 1) * (effect === "fade" || effect === "pop" ? 1 : progress);
-        const whole = Math.floor(span);
-        const frac = span - whole;
+        /** Price on the path at a given index, straight-line between points. */
+        const priceAt = (idx: number) => {
+          if (idx <= pts[0].index) return pts[0].price;
+          const last = pts[pts.length - 1];
+          if (idx >= last.index) return last.price;
+          for (let n = 0; n < pts.length - 1; n++) {
+            const p = pts[n];
+            const q = pts[n + 1];
+            if (idx >= p.index && idx <= q.index) {
+              const t = q.index === p.index ? 0 : (idx - p.index) / (q.index - p.index);
+              return p.price + (q.price - p.price) * t;
+            }
+          }
+          return last.price;
+        };
 
-        const visible = pts.slice(0, whole + 1);
-        if (whole + 1 < pts.length) {
-          const from = pts[whole];
-          const to = pts[whole + 1];
-          visible.push({
-            x: from.x + (to.x - from.x) * frac,
-            y: from.y + (to.y - from.y) * frac,
-          });
+        /*
+          Deterministic wick texture. Math.random is forbidden here — Remotion
+          renders each frame in isolation, so a random wick would differ between
+          frames and the projection would visibly boil. Hashing the bar index
+          gives the same value every time it is asked.
+        */
+        const noise = (n: number) => {
+          const x = Math.sin(n * 12.9898) * 43758.5453;
+          return x - Math.floor(x);
+        };
+
+        const firstIndex = Math.round(pts[0].index);
+        const lastIndex = Math.round(pts[pts.length - 1].index);
+
+        // Wick size follows how fast the path is moving, so a flat forecast
+        // gets small wicks and a sharp one gets large ones.
+        const steps: number[] = [];
+        for (let i = firstIndex + 1; i <= lastIndex; i++) {
+          steps.push(Math.abs(priceAt(i) - priceAt(i - 1)));
+        }
+        const meanStep =
+          steps.length ? steps.reduce((t, v) => t + v, 0) / steps.length : 0;
+
+        const total = Math.max(lastIndex - firstIndex, 1);
+        const shown = total * (effect === "fade" || effect === "pop" ? 1 : progress);
+        const slot = slotWidth(scale);
+        const bodyW = Math.max(slot * 0.62, 0.02);
+
+        const candles: React.ReactNode[] = [];
+        for (let i = firstIndex + 1; i <= lastIndex; i++) {
+          if (i - firstIndex > shown) break;
+          const open = priceAt(i - 1);
+          const close = priceAt(i);
+          const range = Math.max(Math.abs(close - open), meanStep * 0.6, (scale.hi - scale.lo) * 0.002);
+          const high = Math.max(open, close) + range * (0.25 + 0.75 * noise(i));
+          const low = Math.min(open, close) - range * (0.25 + 0.75 * noise(i + 977));
+
+          const cx = indexToSvgX(i, scale);
+          const top = priceToSvgY(Math.max(open, close), scale);
+          // A flat bar would be a zero-height rect and vanish entirely.
+          const h = Math.max(priceToSvgY(Math.min(open, close), scale) - top, 0.15);
+
+          candles.push(
+            <g key={`${key}-c${i}`}>
+              <line
+                x1={cx}
+                y1={priceToSvgY(high, scale)}
+                x2={cx}
+                y2={priceToSvgY(low, scale)}
+                stroke={tone}
+                strokeWidth={px(1.6)}
+                vectorEffect="non-scaling-stroke"
+              />
+              <rect
+                x={cx - bodyW / 2}
+                y={top}
+                width={bodyW}
+                height={h}
+                fill="none"
+                stroke={tone}
+                strokeWidth={px(2)}
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>,
+          );
         }
 
         shapes.push(
           <g key={key} opacity={opacity}>
             {/* Where history stops and opinion starts. */}
             <line
-              x1={pts[0].x}
+              x1={indexToSvgX(firstIndex, scale)}
               y1={0}
-              x2={pts[0].x}
+              x2={indexToSvgX(firstIndex, scale)}
               y2={100}
               stroke={tone}
               strokeWidth={stroke}
@@ -432,35 +503,15 @@ export const AnnotationLayer: React.FC<Props> = ({
               vectorEffect="non-scaling-stroke"
               opacity={0.5}
             />
-            <polyline
-              points={visible.map((p) => `${p.x},${p.y}`).join(" ")}
-              fill="none"
-              stroke={tone}
-              strokeWidth={px(3.4)}
-              strokeDasharray="4 3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-            {visible.map((p, n) => (
-              <circle
-                key={n}
-                cx={p.x}
-                cy={p.y}
-                r={0.7}
-                fill="none"
-                stroke={tone}
-                strokeWidth={px(2.4)}
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
+            {candles}
           </g>,
         );
 
         labels.push({
           key: `${key}-tag`,
-          left: (pts[0].x + pts[pts.length - 1].x) / 2,
-          bottom: 100 - Math.min(...pts.map((p) => p.y)) + 5,
+          left: indexToSvgX((firstIndex + lastIndex) / 2, scale),
+          bottom:
+            priceToPct(Math.max(...pts.map((p) => p.price)), scale) + 6,
           // Not `a.label ||` — the word has to be there whatever else is.
           text: a.label ? `Projection · ${a.label}` : "Projection",
           color: tone,
