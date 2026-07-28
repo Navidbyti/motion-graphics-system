@@ -12,6 +12,7 @@
  */
 
 import { useState } from "react";
+import { ChartPicker } from "./ChartPicker";
 
 type Point = { index: number; price: number };
 type Annotation = Record<string, unknown> & { id: string; kind: string };
@@ -108,9 +109,19 @@ export const AnnotationEditor: React.FC<{
    */
   onChange: (v: Annotation[], removedId?: string) => void;
   /** Used to place new shapes somewhere visible rather than at zero. */
-  bars: { high: number; low: number }[];
-}> = ({ value, onChange, bars }) => {
+  bars: { open: number; high: number; low: number; close: number }[];
+  /** Empty slots at the right, so the picker matches what renders. */
+  futureBars?: number;
+}> = ({ value, onChange, bars, futureBars = 0 }) => {
   const [adding, setAdding] = useState("zone");
+
+  /*
+    Which field is waiting for a click. One at a time: two armed targets and a
+    click has no unambiguous meaning.
+  */
+  const [picking, setPicking] = useState<
+    { row: number; field: string; label: string } | null
+  >(null);
 
   const prices = bars.flatMap((b) => [b.high, b.low]);
   const midPrice = prices.length
@@ -167,7 +178,20 @@ export const AnnotationEditor: React.FC<{
             <div className="annot-grid">
               {numeric.map((f) => (
                 <label className="field" key={f.key}>
-                  <span className="field-label">{f.label}</span>
+                  <span className="field-label">
+                    {f.label}
+                    {/* Numbers stay — the picker is an alternative, not a
+                        replacement. Typing an exact level is still the fastest
+                        way to enter one you already know. */}
+                    {f.step !== 1 ? (
+                      <button
+                        className="link pick"
+                        onClick={() => setPicking({ row: i, field: f.key, label: f.label })}
+                      >
+                        pick
+                      </button>
+                    ) : null}
+                  </span>
                   <input
                     type="number"
                     step={f.step ?? "any"}
@@ -184,6 +208,18 @@ export const AnnotationEditor: React.FC<{
                     <div className="annot-point" key={pk}>
                       <span className="field-label">
                         {pk === "a" ? "Start" : pk === "b" ? "End" : "Position"}
+                        <button
+                          className="link pick"
+                          onClick={() =>
+                            setPicking({
+                              row: i,
+                              field: pk,
+                              label: pk === "a" ? "start" : pk === "b" ? "end" : "position",
+                            })
+                          }
+                        >
+                          pick
+                        </button>
                       </span>
                       <div className="annot-point-row">
                         <input
@@ -209,6 +245,28 @@ export const AnnotationEditor: React.FC<{
                   );
                 },
               )}
+
+              {a.kind === "projection" ? (
+                <div className="annot-point" >
+                  <span className="field-label">
+                    Path — {((a.points as unknown[]) ?? []).length} points
+                    <button
+                      className="link pick"
+                      onClick={() =>
+                        setPicking({ row: i, field: "points", label: "next point" })
+                      }
+                    >
+                      click to add
+                    </button>
+                    <button
+                      className="link"
+                      onClick={() => patch(i, { points: [] })}
+                    >
+                      clear
+                    </button>
+                  </span>
+                </div>
+              ) : null}
 
               <label className="field">
                 <span className="field-label">Label</span>
@@ -254,6 +312,40 @@ export const AnnotationEditor: React.FC<{
           </div>
         );
       })}
+
+      {picking ? (
+        <ChartPicker
+          bars={bars}
+          futureBars={futureBars}
+          prompt={`Click to set the ${picking.label}`}
+          existing={
+            // A projection is a path; showing the points already placed is the
+            // difference between plotting a shape and guessing at one.
+            (value[picking.row]?.points as { index: number; price: number }[]) ?? []
+          }
+          onCancel={() => setPicking(null)}
+          onPick={(point) => {
+            const row = picking.row;
+            const field = picking.field;
+            const current = value[row];
+            if (!current) return setPicking(null);
+
+            if (field === "a" || field === "b" || field === "at") {
+              patch(row, { [field]: point });
+            } else if (field === "points") {
+              // Appends rather than replaces: a projection is built by clicking
+              // along the path, not by setting one point at a time.
+              const pts = (current.points as { index: number; price: number }[]) ?? [];
+              patch(row, { points: [...pts, point] });
+              return; // stay armed so the next click adds the next point
+            } else {
+              // A plain price field takes only the price; its index is fixed.
+              patch(row, { [field]: point.price });
+            }
+            setPicking(null);
+          }}
+        />
+      ) : null}
 
       <div className="annot-add">
         <select value={adding} onChange={(e) => setAdding(e.target.value)}>

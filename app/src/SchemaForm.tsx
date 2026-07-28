@@ -356,7 +356,8 @@ export const SchemaForm: React.FC<{
           {kind.kind === "variantArray" ? (
             <AnnotationEditor
               value={(value[key] as never) ?? []}
-              bars={(value.bars as { high: number; low: number }[]) ?? []}
+              bars={(value.bars as never) ?? []}
+              futureBars={Number(value.futureBars ?? 0)}
               onChange={(next, removedId) => {
                 // One update, not two — see setMany.
                 const changes: Record<string, unknown> = { [key]: next };
