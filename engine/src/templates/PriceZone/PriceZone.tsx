@@ -38,6 +38,7 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
   bars,
   annotations,
   beats,
+  backgroundAlpha,
   decimals,
   showAxis,
   showLast,
@@ -154,7 +155,14 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
           gap: px(space.md),
           padding: px(space.xl),
           borderRadius: px(radius.lg),
-          background: `${palette.ink}BF`,
+          /*
+            Alpha as two hex digits appended to the colour. Rounded and padded
+            because "F" and "0F" are different values, and an unpadded one digit
+            silently produces a nearly transparent card.
+          */
+          background: `${palette.ink}${Math.round(backgroundAlpha * 255)
+            .toString(16)
+            .padStart(2, "0")}`,
           border: `${px(1.5)}px solid ${palette.primary}3D`,
           boxShadow: shadow.soft,
           ...card,

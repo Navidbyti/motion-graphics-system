@@ -58,6 +58,21 @@ export const priceZoneSchema = withCommon({
     .max(40)
     .describe("When each annotation appears. Leave empty to show everything at once"),
 
+  /**
+   * Alpha of the card behind the chart, 0–1.
+   *
+   * Was hardcoded at 0.75. Overlays are composited onto footage in Premiere,
+   * and how much of that footage should show through the card is a per-video
+   * judgement — a busy shot wants a more opaque backing, a clean one wants
+   * almost none. 0 leaves the candles floating on the footage with no card at
+   * all.
+   */
+  backgroundAlpha: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe("Background transparency. 0 = no card, 1 = solid"),
+
   decimals: decimals("Decimal places on prices"),
 
   showAxis: toggle("Show the price axis down the right"),
@@ -135,6 +150,7 @@ export const priceZoneDefaults: PriceZoneProps = {
     { target: "trend", at: 1.5, duration: 0.9, effect: "draw" },
     { target: "note", at: 2.5, duration: 0.4, effect: "pop" },
   ],
+  backgroundAlpha: 0.75,
   decimals: 5,
   showAxis: true,
   showLast: true,
