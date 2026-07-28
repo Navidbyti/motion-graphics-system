@@ -38,6 +38,7 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
   bars,
   annotations,
   beats,
+  futureBars,
   backgroundAlpha,
   decimals,
   showAxis,
@@ -65,7 +66,7 @@ export const PriceZone: React.FC<PriceZoneProps> = ({
     drift, and drift means a line renders somewhere other than where it was
     drawn.
   */
-  const scaleInfo = priceScale(bars, annotationPrices(annotations));
+  const scaleInfo = priceScale(bars, annotationPrices(annotations), 0.08, futureBars);
   const { lo, hi } = scaleInfo;
 
   const pctY = (v: number) => priceToPct(v, scaleInfo);

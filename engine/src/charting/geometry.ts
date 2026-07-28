@@ -45,6 +45,16 @@ export const priceScale = (
   bars: Bar[],
   extra: number[] = [],
   padding = 0.08,
+  /**
+   * Empty candle slots reserved past the last bar.
+   *
+   * The plot divides its width by the slot count, so reserving slots is all it
+   * takes to leave the right-hand side clear — the candles simply stop early
+   * and everything else keeps the same geometry. That gap is breathing room on
+   * its own, and it is where a projection has to be drawn: a predicted path
+   * needs somewhere to go that is visibly not history.
+   */
+  futureSlots = 0,
 ): PriceScale => {
   const values = [
     ...bars.map((b) => b.low),
@@ -58,7 +68,7 @@ export const priceScale = (
   // same pixel and the chart collapses to a line.
   const pad = (rawHi - rawLo) * padding || Math.abs(rawHi) * 0.01 || 1;
 
-  return { lo: rawLo - pad, hi: rawHi + pad, count: bars.length };
+  return { lo: rawLo - pad, hi: rawHi + pad, count: bars.length + futureSlots };
 };
 
 /* ------------------------------------------------------------------ *

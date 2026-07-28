@@ -389,6 +389,87 @@ export const AnnotationLayer: React.FC<Props> = ({
         break;
       }
 
+      case "projection": {
+        /*
+          Five separate signals that this is not data: its own colour, a dashed
+          path, hollow markers, a boundary rule at the last real candle, and a
+          tag that cannot be turned off. Any one of them alone could be missed
+          on a phone screen at speed.
+        */
+        const pts = a.points.map((p) => ({
+          x: indexToSvgX(p.index, scale),
+          y: priceToSvgY(p.price, scale),
+        }));
+        if (pts.length < 2) break;
+
+        // Grow the path point by point rather than fading it in — a forecast
+        // reads as a forecast when you watch it being extended.
+        const span = (pts.length - 1) * (effect === "fade" || effect === "pop" ? 1 : progress);
+        const whole = Math.floor(span);
+        const frac = span - whole;
+
+        const visible = pts.slice(0, whole + 1);
+        if (whole + 1 < pts.length) {
+          const from = pts[whole];
+          const to = pts[whole + 1];
+          visible.push({
+            x: from.x + (to.x - from.x) * frac,
+            y: from.y + (to.y - from.y) * frac,
+          });
+        }
+
+        shapes.push(
+          <g key={key} opacity={opacity}>
+            {/* Where history stops and opinion starts. */}
+            <line
+              x1={pts[0].x}
+              y1={0}
+              x2={pts[0].x}
+              y2={100}
+              stroke={tone}
+              strokeWidth={stroke}
+              strokeDasharray="1.5 2"
+              vectorEffect="non-scaling-stroke"
+              opacity={0.5}
+            />
+            <polyline
+              points={visible.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill="none"
+              stroke={tone}
+              strokeWidth={px(3.4)}
+              strokeDasharray="4 3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            {visible.map((p, n) => (
+              <circle
+                key={n}
+                cx={p.x}
+                cy={p.y}
+                r={0.7}
+                fill="none"
+                stroke={tone}
+                strokeWidth={px(2.4)}
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+          </g>,
+        );
+
+        labels.push({
+          key: `${key}-tag`,
+          left: (pts[0].x + pts[pts.length - 1].x) / 2,
+          bottom: 100 - Math.min(...pts.map((p) => p.y)) + 5,
+          // Not `a.label ||` — the word has to be there whatever else is.
+          text: a.label ? `Projection · ${a.label}` : "Projection",
+          color: tone,
+          opacity: progress,
+          align: "left",
+        });
+        break;
+      }
+
       case "position": {
         const x0 = indexToSvgX(a.fromIndex, scale);
         const x1 = indexToSvgX(a.toIndex, scale);

@@ -67,6 +67,19 @@ export const priceZoneSchema = withCommon({
    * almost none. 0 leaves the candles floating on the footage with no card at
    * all.
    */
+  /**
+   * Empty candle slots kept clear at the right.
+   *
+   * Breathing room on its own, and the only place a projection can live — a
+   * predicted path drawn over history would be claiming to be history.
+   */
+  futureBars: z
+    .number()
+    .int()
+    .min(0)
+    .max(120)
+    .describe("Empty space at the right, in candles"),
+
   backgroundAlpha: z
     .number()
     .min(0)
@@ -142,6 +155,18 @@ export const priceZoneDefaults: PriceZoneProps = {
       opacity: 0.55,
     },
     { id: "note", kind: "note", at: { index: 150, price: 1.1465 }, label: "Rejected", opacity: 1 },
+    {
+      id: "forecast",
+      kind: "projection",
+      color: "#7C5CFF",
+      opacity: 1,
+      points: [
+        { index: 179, price: 1.1311 },
+        { index: 192, price: 1.1215 },
+        { index: 204, price: 1.1155 },
+        { index: 214, price: 1.119 },
+      ],
+    },
   ],
 
   beats: [
@@ -149,7 +174,9 @@ export const priceZoneDefaults: PriceZoneProps = {
     { target: "demand", at: 0.8, duration: 0.55, effect: "wipe" },
     { target: "trend", at: 1.5, duration: 0.9, effect: "draw" },
     { target: "note", at: 2.5, duration: 0.4, effect: "pop" },
+    { target: "forecast", at: 3.1, duration: 1.1, effect: "draw" },
   ],
+  futureBars: 40,
   backgroundAlpha: 0.75,
   decimals: 5,
   showAxis: true,

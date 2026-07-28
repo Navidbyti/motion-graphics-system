@@ -1,5 +1,9 @@
 # Motion Graphics System
 
+> **Free to use.** Templates you submit may be included in the software after
+> review — see [TERMS.md](TERMS.md). Using the software means you accept them.
+
+
 Reusable [Remotion](https://remotion.dev) motion graphics templates with a GUI, so a
 video editor can produce on-brand animated overlays without touching code.
 

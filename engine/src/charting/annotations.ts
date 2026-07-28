@@ -141,6 +141,26 @@ export const annotationSchema = z.discriminatedUnion("kind", [
   }),
 
   /**
+   * A projected continuation — where the price is expected to go.
+   *
+   * Rendered so it can never be mistaken for history: its own colour, a dashed
+   * path, hollow markers, a boundary line at the last real candle and a
+   * "Projection" tag that is not optional. An invented price path that looks
+   * like data, under a real ticker, in front of an audience taking financial
+   * cues from it, is a different kind of object than an opinion — the styling
+   * is what keeps it the second thing.
+   */
+  z.object({
+    ...base,
+    kind: z.literal("projection"),
+    points: z
+      .array(point)
+      .min(2)
+      .max(40)
+      .describe("The expected path, left to right"),
+  }),
+
+  /**
    * The long/short position tool — entry, stop and target as one object, with
    * the reward and risk boxes shaded.
    *
@@ -225,6 +245,9 @@ export const annotationPrices = (annotations: Annotation[]): number[] => {
         break;
       case "note":
         prices.push(a.at.price);
+        break;
+      case "projection":
+        for (const p of a.points) prices.push(p.price);
         break;
       case "position":
         prices.push(a.entry, a.stop, a.target);
