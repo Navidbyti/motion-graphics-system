@@ -158,6 +158,20 @@ export const annotationSchema = z.discriminatedUnion("kind", [
       .min(2)
       .max(40)
       .describe("The expected path, left to right"),
+
+    /** Draw the path line joining the points, as well as the candles. */
+    showPath: z.boolean().default(true).describe("Show the line through the points"),
+
+    /** Draw simulated candles along the path. */
+    showCandles: z.boolean().default(true).describe("Show simulated candles"),
+
+    /**
+     * How much the simulated candles wick beyond the path, 0–1.
+     *
+     * The path is the forecast; this is only how choppy the invented price
+     * action around it looks. At 0 the candles sit exactly on the line.
+     */
+    volatility: z.number().min(0).max(1).default(0.5).describe("Candle wick size"),
   }),
 
   /**

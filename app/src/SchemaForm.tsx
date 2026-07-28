@@ -271,6 +271,41 @@ export const SchemaForm: React.FC<{
     const next: Record<string, unknown> = { ...value, [key]: rows };
     const has = (field: string) => fields.some((f) => f.key === field);
 
+    /*
+      Rescale anything anchored to a bar index.
+
+      Annotations store a bar index, and fetching a different series changes how
+      many bars there are. 200 candles replaced by 120 leaves every trendline
+      and projection pointing past the end of the chart — they vanish, and their
+      labels float outside the card. Scaling the indexes keeps each annotation
+      at the same relative place in the series, which is where it was drawn.
+    */
+    const oldCount = (value[key] as unknown[])?.length ?? 0;
+    const newCount = rows.length;
+    if (oldCount > 1 && newCount > 1 && oldCount !== newCount) {
+      const factor = (newCount - 1) / (oldCount - 1);
+      const shift = (n: unknown) =>
+        typeof n === "number" ? Math.round(n * factor) : n;
+      const shiftPoint = (p: unknown) =>
+        p && typeof p === "object" && "index" in (p as object)
+          ? { ...(p as object), index: shift((p as { index: number }).index) }
+          : p;
+
+      const annotations = value.annotations as Record<string, unknown>[] | undefined;
+      if (annotations?.length) {
+        next.annotations = annotations.map((a) => ({
+          ...a,
+          ...(a.fromIndex !== undefined ? { fromIndex: shift(a.fromIndex) } : {}),
+          ...(a.toIndex !== undefined ? { toIndex: shift(a.toIndex) } : {}),
+          ...(a.index !== undefined ? { index: shift(a.index) } : {}),
+          ...(a.a ? { a: shiftPoint(a.a) } : {}),
+          ...(a.b ? { b: shiftPoint(a.b) } : {}),
+          ...(a.at ? { at: shiftPoint(a.at) } : {}),
+          ...(Array.isArray(a.points) ? { points: a.points.map(shiftPoint) } : {}),
+        }));
+      }
+    }
+
     if (has("decimals")) next.decimals = meta.decimals;
     if (has("ticker")) next.ticker = meta.label;
     else if (has("title")) next.title = meta.label;

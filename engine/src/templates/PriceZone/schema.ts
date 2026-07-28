@@ -160,6 +160,9 @@ export const priceZoneDefaults: PriceZoneProps = {
       kind: "projection",
       color: "#7C5CFF",
       opacity: 1,
+      showPath: true,
+      showCandles: true,
+      volatility: 0.5,
       points: [
         { index: 179, price: 1.1311 },
         { index: 184, price: 1.1268 },

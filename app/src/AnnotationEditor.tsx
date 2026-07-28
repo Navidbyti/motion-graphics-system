@@ -54,6 +54,7 @@ const KINDS = [
   ["vline", "Vertical line"],
   ["focus", "Focus — dim everything else"],
   ["fib", "Fibonacci retracement"],
+  ["projection", "Projection — predicted candles"],
   ["position", "Position — entry, stop, target"],
 ] as const;
 
@@ -87,6 +88,8 @@ const blank = (kind: string, midPrice: number, midIndex: number): Annotation => 
       };
     case "fib":
       return { ...base, a, b, levels: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] };
+    case "projection":
+      return { ...base, points: [], showPath: true, showCandles: true, volatility: 0.5 };
     case "position":
       return {
         ...base,
@@ -265,6 +268,39 @@ export const AnnotationEditor: React.FC<{
                       clear
                     </button>
                   </span>
+
+                  <div className="annot-toggles">
+                    <label className="annot-check">
+                      <input
+                        type="checkbox"
+                        checked={a.showPath !== false}
+                        onChange={(e) => patch(i, { showPath: e.target.checked })}
+                      />
+                      <span className="small">Path line</span>
+                    </label>
+                    <label className="annot-check">
+                      <input
+                        type="checkbox"
+                        checked={a.showCandles !== false}
+                        onChange={(e) => patch(i, { showCandles: e.target.checked })}
+                      />
+                      <span className="small">Candles</span>
+                    </label>
+                  </div>
+
+                  <label className="field">
+                    <span className="field-label">
+                      Candle wick size — {Math.round(Number(a.volatility ?? 0.5) * 100)}%
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={Number(a.volatility ?? 0.5)}
+                      onChange={(e) => patch(i, { volatility: Number(e.target.value) })}
+                    />
+                  </label>
                 </div>
               ) : null}
 

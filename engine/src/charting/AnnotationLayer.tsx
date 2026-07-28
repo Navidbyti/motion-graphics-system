@@ -261,6 +261,19 @@ export const AnnotationLayer: React.FC<Props> = ({
             <line x1={ax} y1={ay2} x2={e2.x2} y2={e2.y2} stroke={tone} strokeWidth={stroke} vectorEffect="non-scaling-stroke" strokeLinecap="round" />
           </g>,
         );
+        // A channel had no label at all — the field existed in the editor and
+        // silently did nothing.
+        if (a.label) {
+          labels.push({
+            key: `${key}-label`,
+            left: (ax + bx) / 2,
+            bottom: 100 - (ay + ay2) / 2,
+            text: a.label,
+            color: tone,
+            opacity: progress,
+            align: "left",
+          });
+        }
         break;
       }
 
@@ -455,7 +468,12 @@ export const AnnotationLayer: React.FC<Props> = ({
           if (i - firstIndex > shown) break;
           const open = priceAt(i - 1);
           const close = priceAt(i);
-          const range = Math.max(Math.abs(close - open), meanStep * 0.6, (scale.hi - scale.lo) * 0.002);
+          const range =
+            Math.max(Math.abs(close - open), meanStep * 0.6, (scale.hi - scale.lo) * 0.002) *
+            // 0 puts the candles exactly on the path; 1 makes them choppy. The
+            // path is the forecast, this is only how the invented price action
+            // around it looks.
+            (a.volatility * 2);
           const high = Math.max(open, close) + range * (0.25 + 0.75 * noise(i));
           const low = Math.min(open, close) - range * (0.25 + 0.75 * noise(i + 977));
 
@@ -503,7 +521,35 @@ export const AnnotationLayer: React.FC<Props> = ({
               vectorEffect="non-scaling-stroke"
               opacity={0.5}
             />
-            {candles}
+            {a.showCandles === false ? null : candles}
+
+            {/*
+              The line through the points, drawn as well as the candles rather
+              than instead of them. The candles show what the move looks like;
+              the line shows the call being made — losing it left nothing
+              connecting the twenty points that were placed deliberately.
+            */}
+            {a.showPath === false ? null : (
+              <polyline
+                points={(() => {
+                  const upTo = firstIndex + shown;
+                  const on = pts.filter((p) => p.index <= upTo);
+                  if (on.length && upTo > (on[on.length - 1]?.index ?? 0)) {
+                    on.push({ index: upTo, price: priceAt(upTo) });
+                  }
+                  return on
+                    .map((p) => `${indexToSvgX(p.index, scale)},${priceToSvgY(p.price, scale)}`)
+                    .join(" ");
+                })()}
+                fill="none"
+                stroke={tone}
+                strokeWidth={px(3)}
+                strokeDasharray="5 3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
           </g>,
         );
 
@@ -594,7 +640,17 @@ export const AnnotationLayer: React.FC<Props> = ({
             bottom: `${l.bottom}%`,
             ...(l.align === "right"
               ? { right: 0, transform: "translate(0, 50%)" }
-              : { left: `${l.left}%`, transform: "translate(-50%, 50%)" }),
+              : {
+                  /*
+                    Clamped into the plot. An annotation whose points sit past
+                    the last slot — which is what happens when new market data
+                    is fetched and the old indexes no longer exist — pushed its
+                    label outside the card entirely, floating over the footage
+                    with nothing attached to it.
+                  */
+                  left: `${Math.max(4, Math.min(96, l.left))}%`,
+                  transform: "translate(-50%, 50%)",
+                }),
             opacity: l.opacity,
             display: "flex",
             alignItems: "center",

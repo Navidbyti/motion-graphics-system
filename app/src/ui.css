@@ -416,3 +416,6 @@ td input { padding: 4px 6px; }
   width: 100%; height: 220px; cursor: crosshair;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
 }
+.annot-toggles { display: flex; gap: 14px; }
+.annot-check { display: flex; align-items: center; gap: 6px; }
+.annot-check input { width: 15px; height: 15px; }
