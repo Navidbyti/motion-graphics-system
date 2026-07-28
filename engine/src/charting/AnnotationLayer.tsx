@@ -25,6 +25,8 @@ import {
   priceToPct,
   priceToSvgY,
   slotWidth,
+  smoothPathD,
+  smoothPrice,
 } from "./geometry";
 
 type Props = {
@@ -419,21 +421,13 @@ export const AnnotationLayer: React.FC<Props> = ({
         const pts = [...a.points].sort((p, q) => p.index - q.index);
         if (pts.length < 2) break;
 
-        /** Price on the path at a given index, straight-line between points. */
-        const priceAt = (idx: number) => {
-          if (idx <= pts[0].index) return pts[0].price;
-          const last = pts[pts.length - 1];
-          if (idx >= last.index) return last.price;
-          for (let n = 0; n < pts.length - 1; n++) {
-            const p = pts[n];
-            const q = pts[n + 1];
-            if (idx >= p.index && idx <= q.index) {
-              const t = q.index === p.index ? 0 : (idx - p.index) / (q.index - p.index);
-              return p.price + (q.price - p.price) * t;
-            }
-          }
-          return last.price;
-        };
+        /*
+          Price on the path at a given index — one smooth curve through the
+          placed points, shared with the editor and with the line drawn below.
+          Straight segments made every point a corner, and the candles inherited
+          the kink because they are built from this same function.
+        */
+        const priceAt = smoothPrice(pts);
 
         /*
           Deterministic wick texture. Math.random is forbidden here — Remotion
@@ -530,25 +524,37 @@ export const AnnotationLayer: React.FC<Props> = ({
               connecting the twenty points that were placed deliberately.
             */}
             {a.showPath === false ? null : (
-              <polyline
-                points={(() => {
-                  const upTo = firstIndex + shown;
-                  const on = pts.filter((p) => p.index <= upTo);
-                  if (on.length && upTo > (on[on.length - 1]?.index ?? 0)) {
-                    on.push({ index: upTo, price: priceAt(upTo) });
-                  }
-                  return on
-                    .map((p) => `${indexToSvgX(p.index, scale)},${priceToSvgY(p.price, scale)}`)
-                    .join(" ");
-                })()}
-                fill="none"
-                stroke={tone}
-                strokeWidth={px(3)}
-                strokeDasharray="5 3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
+              <>
+                {/*
+                  Two passes: a wide, very faint halo and a thin bright core.
+                  One flat stroke sits on top of the candles like a ruler; the
+                  halo puts the line INSIDE the chart, and it is what makes a
+                  translucent line still read as deliberate rather than as an
+                  underpowered one.
+                */}
+                <path
+                  d={smoothPathD(priceAt, firstIndex, firstIndex + shown, scale)}
+                  fill="none"
+                  stroke={tone}
+                  strokeWidth={px(14)}
+                  strokeOpacity={0.1}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <path
+                  d={smoothPathD(priceAt, firstIndex, firstIndex + shown, scale)}
+                  fill="none"
+                  stroke={tone}
+                  strokeWidth={px(2.5)}
+                  // Solid, not dashed. The dash was carrying "this is opinion",
+                  // but hollow candles, the boundary rule and a tag that cannot
+                  // be switched off already say it — and a dash across twenty
+                  // bars is the choppiest thing on the chart.
+                  strokeOpacity={0.85}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </>
             )}
           </g>,
         );

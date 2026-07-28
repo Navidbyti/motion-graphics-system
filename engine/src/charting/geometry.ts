@@ -158,3 +158,123 @@ export const snapPrice = (
 /** Snap a dragged index to the nearest whole candle. */
 export const snapIndex = (index: number, s: PriceScale) =>
   Math.max(0, Math.min(s.count - 1, Math.round(index)));
+
+/* ------------------------------------------------------------------ *
+ * Smoothing
+ * ------------------------------------------------------------------ */
+
+/**
+ * A smooth curve through a set of points, as a function of bar index.
+ *
+ * Joining placed points with straight segments makes every point a corner, and
+ * twenty deliberately-placed points become twenty visible kinks — the path
+ * reads as a chain of decisions rather than as one movement.
+ *
+ * Monotone cubic Hermite (Fritsch–Carlson), not a Catmull-Rom or a plain
+ * cardinal spline, for two reasons that matter here:
+ *
+ * 1. It is a FUNCTION of the index, so the same curve can be asked "what is the
+ *    price at bar 34?" — which is what the candles are built from. A parametric
+ *    spline gives a shape but not an answer, and the candles would then have to
+ *    follow a different curve from the line drawn over them.
+ * 2. It cannot overshoot. An ordinary spline through a peak swings ABOVE the
+ *    peak, so a forecast tops out somewhere the person never clicked. The
+ *    monotone limiter flattens the slope at every high and low instead, which
+ *    is the gentle rounded turn wanted at the tops and bottoms.
+ */
+export const smoothPrice = (
+  points: ChartPoint[],
+): ((index: number) => number) => {
+  // Sorted, and duplicate indexes dropped — two prices at one index has no
+  // answer, and it would divide by a zero-width interval.
+  const pts = [...points]
+    .sort((p, q) => p.index - q.index)
+    .filter((p, i, all) => i === 0 || p.index > all[i - 1].index);
+
+  if (!pts.length) return () => 0;
+  if (pts.length === 1) return () => pts[0].price;
+
+  const n = pts.length;
+  const dx: number[] = [];
+  const delta: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1].index - pts[i].index);
+    delta.push((pts[i + 1].price - pts[i].price) / dx[i]);
+  }
+
+  // Slope at each point: the average of the two neighbouring gradients, except
+  // where the direction changes — a turning point gets a flat slope, which is
+  // what rounds it off instead of spiking it.
+  const m: number[] = new Array(n);
+  m[0] = delta[0];
+  m[n - 1] = delta[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = delta[i - 1] * delta[i] <= 0 ? 0 : (delta[i - 1] + delta[i]) / 2;
+  }
+
+  // The Fritsch–Carlson limiter. Without it the curve can still bulge past the
+  // points it is meant to pass through on a steep-then-shallow pair.
+  for (let i = 0; i < n - 1; i++) {
+    if (delta[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i] / delta[i];
+    const b = m[i + 1] / delta[i];
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      m[i] = t * a * delta[i];
+      m[i + 1] = t * b * delta[i];
+    }
+  }
+
+  return (index: number) => {
+    if (index <= pts[0].index) return pts[0].price;
+    if (index >= pts[n - 1].index) return pts[n - 1].price;
+
+    let i = 0;
+    while (i < n - 2 && index > pts[i + 1].index) i++;
+
+    const h = dx[i];
+    const t = (index - pts[i].index) / h;
+    const t2 = t * t;
+    const t3 = t2 * t;
+
+    return (
+      (2 * t3 - 3 * t2 + 1) * pts[i].price +
+      (t3 - 2 * t2 + t) * h * m[i] +
+      (-2 * t3 + 3 * t2) * pts[i + 1].price +
+      (t3 - t2) * h * m[i + 1]
+    );
+  };
+};
+
+/**
+ * The smooth curve as an SVG path, sampled rather than expressed as béziers.
+ *
+ * Sampling costs a few hundred coordinates and buys two things worth more than
+ * that: the drawn line is the identical curve the candles were built from — no
+ * second implementation to drift — and a partial reveal is a shorter sample
+ * range rather than splitting a bézier at an arbitrary t.
+ */
+export const smoothPathD = (
+  priceAt: (index: number) => number,
+  from: number,
+  to: number,
+  s: PriceScale,
+  /** Samples per candle slot. Eight is past the point of visible facets. */
+  per = 8,
+): string => {
+  if (!(to > from)) return "";
+  const steps = Math.max(2, Math.ceil((to - from) * per));
+  let d = "";
+  for (let i = 0; i <= steps; i++) {
+    const idx = from + ((to - from) * i) / steps;
+    const x = indexToSvgX(idx, s).toFixed(3);
+    const y = priceToSvgY(priceAt(idx), s).toFixed(3);
+    d += `${i === 0 ? "M" : "L"} ${x} ${y} `;
+  }
+  return d.trim();
+};

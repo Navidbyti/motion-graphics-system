@@ -28,6 +28,8 @@ import {
   indexToSvgX,
   slotWidth,
   snapIndex,
+  smoothPathD,
+  smoothPrice,
   snapPrice,
   svgXToIndex,
   svgYToPrice,
@@ -55,6 +57,12 @@ type Handle = {
   title: string;
   /** The change this handle makes when dropped at `p`. */
   apply: (p: Point) => Record<string, unknown>;
+  /**
+   * The change that deletes this handle's point, where deleting one is
+   * meaningful. A zone has exactly two edges and neither can be removed; a
+   * projection path is a list, and a list you can only add to is a trap.
+   */
+  remove?: () => Record<string, unknown>;
 };
 
 const num = (v: unknown, fallback = 0) =>
@@ -244,6 +252,7 @@ const handlesFor = (a: Annotation, s: PriceScale): Handle[] => {
         apply: (p: Point) => ({
           points: pts.map((old, m) => (m === n ? p : old)),
         }),
+        remove: () => ({ points: pts.filter((_, m) => m !== n) }),
       }));
     }
 
@@ -437,18 +446,23 @@ const Shape: React.FC<{
     case "projection": {
       const pts = ((a.points as Point[]) ?? []).filter(Boolean);
       if (!pts.length) return null;
+      const sorted = [...pts].sort((p, q) => p.index - q.index);
       return (
         <>
           {a.showPath !== false && pts.length > 1 ? (
-            <polyline
-              points={pts.map((p) => `${x(p.index)},${y(p.price)}`).join(" ")}
+            // The same curve the render draws, from the same function — a
+            // straight-segment preview of a smoothed path would put the bends
+            // somewhere they don't end up.
+            <path
+              d={smoothPathD(
+                smoothPrice(sorted),
+                sorted[0].index,
+                sorted[sorted.length - 1].index,
+                s,
+              )}
               {...line}
-              strokeDasharray="5 3"
             />
           ) : null}
-          {pts.map((p, n) => (
-            <circle key={n} cx={x(p.index)} cy={y(p.price)} r={0.9} fill={colour} fillOpacity={alpha} />
-          ))}
         </>
       );
     }
@@ -709,8 +723,22 @@ export const BuildStage: React.FC<{
                   strokeWidth={on ? 2 : 1}
                   vectorEffect="non-scaling-stroke"
                   onPointerDown={onPointerDown(row, h.key)}
+                  onContextMenu={
+                    h.remove
+                      ? (e) => {
+                          // Right-click, because left is already taken by drag
+                          // and by placing the next point — and a point you can
+                          // add but never take back is worse than no point.
+                          e.preventDefault();
+                          e.stopPropagation();
+                          patch(row, h.remove!());
+                        }
+                      : undefined
+                  }
                 >
-                  <title>{`${a.kind} — ${h.title}`}</title>
+                  <title>
+                    {`${a.kind} — ${h.title}${h.remove ? " (right-click to remove)" : ""}`}
+                  </title>
                 </circle>
               );
             }),

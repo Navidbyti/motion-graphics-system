@@ -316,8 +316,22 @@ export const SchemaForm: React.FC<{
 
   return (
     <div className="form">
-      {fields.map(({ key, kind, label }) => (
-        <label key={key} className="field">
+      {fields.map(({ key, kind, label }) => {
+        /*
+          A <label> around a single input is what makes the caption clickable.
+          Around a LIST of controls it is a trap: a click anywhere inside a
+          label is forwarded to its first labelable descendant, so every click
+          in the annotation list — on any card, on any row — was redirected
+          into the first card's first input, and selecting a shape always
+          selected the first one. Fields that contain more than one control get
+          a plain div, and their caption stops being a label for anything in
+          particular, which is correct: it isn't.
+        */
+        const Wrap = kind.kind === "variantArray" || kind.kind === "objectArray"
+          ? "div"
+          : "label";
+        return (
+        <Wrap key={key} className="field">
           <span className="field-label">{label}</span>
 
           {kind.kind === "color" ? (
@@ -429,8 +443,9 @@ export const SchemaForm: React.FC<{
               No editor for this field type yet — add one in SchemaForm.tsx.
             </span>
           ) : null}
-        </label>
-      ))}
+        </Wrap>
+        );
+      })}
     </div>
   );
 };

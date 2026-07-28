@@ -280,6 +280,20 @@ export const AnnotationEditor: React.FC<{
                     >
                       {armed(i, "points") ? "click the chart…" : "click to add"}
                     </button>
+                    {/* Undo before clear. Misplacing the last click is the
+                        common case; wanting to lose all twenty is not. */}
+                    <button
+                      className="link"
+                      disabled={!((a.points as unknown[]) ?? []).length}
+                      onClick={() =>
+                        patch(i, {
+                          points: ((a.points as unknown[]) ?? []).slice(0, -1),
+                        })
+                      }
+                      title="Remove the last point placed"
+                    >
+                      undo
+                    </button>
                     <button
                       className="link"
                       onClick={() => patch(i, { points: [] })}
