@@ -390,8 +390,17 @@ const Layer: React.FC<{
         close: num(b.close),
       };
     });
-    // The slow EMA needs room to mean anything; below that the panel is noise.
-    if (bars.length < layer.slowPeriod) return null;
+    /*
+      Three bars, not `slowPeriod`.
+
+      Requiring a full slow period looked principled and was the worst kind of
+      wrong: a template shipped with 15 sample candles and a 26-period slow EMA
+      rendered an EMPTY PANEL, silently, with nothing on screen or in the
+      validator to say why. The values are seeded rather than meaningless below
+      a full period — the line is flat and honest about being under-fed, which
+      tells someone to add data. Nothing at all tells them the feature is broken.
+    */
+    if (bars.length < 3) return null;
 
     /*
       No `futureBars` and no annotation prices — the panel's own scale is

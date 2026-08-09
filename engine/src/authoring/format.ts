@@ -334,7 +334,7 @@ export const textStyleSchema = z.object({
   direction: z.enum(["auto", "ltr", "rtl"]).default("auto"),
 });
 
-export const layerSchema = z.discriminatedUnion("type", [
+const layerVariants = z.discriminatedUnion("type", [
   z.object({
     ...layerBase,
     type: z.literal("text"),
@@ -401,7 +401,20 @@ export const layerSchema = z.discriminatedUnion("type", [
   z.object({
     ...layerBase,
     type: z.literal("chart"),
-    kind: z.enum(["candles", "line"]).default("candles"),
+    /*
+      The message matters: the bare enum error said "expected 'candles' |
+      'line'" and left someone to work out for themselves that a MACD is a
+      different layer type. A repair loop can act on the sentence below in one
+      attempt; it cannot act on a list of two words.
+    */
+    kind: z
+      .enum(["candles", "line"], {
+        errorMap: () => ({
+          message:
+            "must be 'candles' or 'line'. For a MACD panel use a separate layer with \"type\": \"macd\" instead.",
+        }),
+      })
+      .default("candles"),
     /**
      * `{{fieldKey}}` of a `bars` field for candles, or a `series` field for a
      * line. The data is never in the template — a chart with prices baked in
@@ -483,6 +496,32 @@ export const layerSchema = z.discriminatedUnion("type", [
     dimPriceTo: z.number().min(0).max(1).default(1),
   }),
 ]);
+
+/**
+ * Accept the obvious guess before rejecting it.
+ *
+ * A model asked for a MACD panel wrote `{"type": "chart", "kind": "macd"}`,
+ * which is a perfectly sensible reading: the chart layer HAS a `kind`, so a
+ * chart of kind macd is what the format looks like it should want. It was
+ * rejected with "expected 'candles' | 'line'", the rest of the template was
+ * correct, and the whole generation was thrown away over a naming choice of
+ * mine.
+ *
+ * When a wrong spelling has exactly one possible meaning, accepting it is
+ * strictly better than being right about it. This is the only alias — it exists
+ * because the naming genuinely invites the mistake, not as a general policy of
+ * guessing what people meant.
+ */
+export const layerSchema = z.preprocess((raw) => {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const layer = raw as Record<string, unknown>;
+    if (layer.type === "chart" && layer.kind === "macd") {
+      const { kind: _dropped, ...rest } = layer;
+      return { ...rest, type: "macd" };
+    }
+  }
+  return raw;
+}, layerVariants);
 
 export type TemplateLayer = z.infer<typeof layerSchema>;
 

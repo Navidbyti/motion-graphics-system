@@ -91,7 +91,8 @@ Every field has \`key\`, \`label\`, an optional \`help\`, and a \`type\`:
 - \`color\` — optional \`default\`; **omit it so the colour follows the brand**
 - \`choice\` — \`options\`: [{ "value", "label" }], and a \`default\` that is one of them
 - \`image\` — the user supplies the picture; you cannot ship one
-- \`bars\` — candles (open/high/low/close). Ship 6–10 rows as a sample; the user
+- \`bars\` — candles (open/high/low/close). Ship 8–12 rows as a sample, or **40+
+  if anything uses a \`macd\` layer or a long \`overlays\` period**; the user
   fetches real prices or pastes them from a spreadsheet
 - \`series\` — labelled values for a line chart: [{ "label", "value" }]
 - \`annotations\` — zones, levels and trendlines the user draws. No \`default\`;
@@ -199,6 +200,10 @@ histogram between them.
   "motion": { "in": "none", "at": 2.5 } }
 \`\`\`
 - Point \`data\` at the **same** \`bars\` field the chart above uses.
+- **Ship at least 40 sample bars on that field.** A 26-period slow EMA needs
+  26 candles before it means anything, so a 15-row sample draws a flat,
+  useless panel. The user replaces the data, but your sample is what they
+  judge the template by.
 - Needs \`w\` and \`h\`, like any chart.
 - The panel is scaled around zero and draws its own zero line.
 - **Use this whenever someone says "MACD", "histogram" or "indicator panel".**
