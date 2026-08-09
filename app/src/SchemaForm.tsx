@@ -13,6 +13,7 @@
 import { useMemo, useState } from "react";
 import type { z } from "zod";
 import { AnnotationEditor } from "./AnnotationEditor";
+import { findChartKeys } from "./chartKeys";
 import { MarketFetch, type MarketShape } from "./MarketFetch";
 import { fieldEntries, humanise } from "./schemaIntrospect";
 
@@ -405,7 +406,12 @@ export const SchemaForm: React.FC<{
           {kind.kind === "variantArray" ? (
             <AnnotationEditor
               value={(value[key] as never) ?? []}
-              bars={(value.bars as never) ?? []}
+              /*
+                Found by shape, not by the name `bars` — a pasted template calls
+                its price field whatever it likes, and a hardcoded lookup left
+                the editor placing shapes against an empty chart.
+              */
+              bars={(value[findChartKeys(value)?.bars ?? "bars"] as never) ?? []}
               futureBars={Number(value.futureBars ?? 0)}
               onChange={(next, removedId) => {
                 // One update, not two — see setMany.

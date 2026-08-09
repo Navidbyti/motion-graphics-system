@@ -172,6 +172,50 @@ export const fieldSchema = z.discriminatedUnion("type", [
     /** Supplied by the editor at use time; a template cannot ship an image. */
     default: z.string().default(""),
   }),
+
+  /*
+    Chart data. These exist as their own field types rather than as a generic
+    table because of what the app already does with the SHAPE: a field whose
+    columns are open/high/low/close gets the Yahoo fetch button and the
+    paste-from-spreadsheet box automatically, and an annotation field gets the
+    list editor and Build mode's drag handles. Declaring `bars` therefore hands
+    a pasted template the entire market-data workflow for nothing.
+  */
+  z.object({
+    ...fieldBase,
+    type: z.literal("bars"),
+    /** Candles. The editor fetches or pastes these; a template ships a sample. */
+    default: z
+      .array(
+        z.object({
+          open: z.number(),
+          high: z.number(),
+          low: z.number(),
+          close: z.number(),
+        }),
+      )
+      .default([]),
+    maxRows: z.number().int().min(2).max(1000).default(400),
+  }),
+  z.object({
+    ...fieldBase,
+    type: z.literal("series"),
+    /** A labelled value per point, for a line. */
+    default: z
+      .array(z.object({ label: z.string(), value: z.number() }))
+      .default([]),
+    maxRows: z.number().int().min(2).max(1000).default(400),
+  }),
+  z.object({
+    ...fieldBase,
+    type: z.literal("annotations"),
+    /**
+     * Zones, levels, trendlines and the rest. Always starts empty — the shapes
+     * belong to the graphic being made, not to the template, and a template
+     * that ships its own would put someone else's analysis on every chart.
+     */
+    default: z.array(z.unknown()).max(0).default([]),
+  }),
 ]);
 
 export type TemplateField = z.infer<typeof fieldSchema>;
@@ -333,6 +377,33 @@ export const layerSchema = z.discriminatedUnion("type", [
     /** Follows the brand the editor picked; nothing to configure. */
     tint: colorValue.optional(),
   }),
+
+  z.object({
+    ...layerBase,
+    type: z.literal("chart"),
+    kind: z.enum(["candles", "line"]).default("candles"),
+    /**
+     * `{{fieldKey}}` of a `bars` field for candles, or a `series` field for a
+     * line. The data is never in the template — a chart with prices baked in
+     * is a picture of one moment.
+     */
+    data: z.string(),
+    /**
+     * `{{fieldKey}}` of an `annotations` field. Supplying one is what gives the
+     * editor the zone and trendline tools, and Build mode's drag handles, on
+     * this template.
+     */
+    annotations: z.string().optional(),
+    /**
+     * Empty candle slots kept clear at the right. Where a projection goes, and
+     * breathing room before the price label if there is one.
+     */
+    futureBars: z.number().int().min(0).max(200).default(0),
+    /** Decimal places on any price the chart prints. */
+    decimals: z.number().int().min(0).max(8).default(2),
+    /** Seconds the price takes to draw in. */
+    drawSeconds: z.number().min(0.1).max(20).default(1.6),
+  }),
 ]);
 
 export type TemplateLayer = z.infer<typeof layerSchema>;
@@ -423,18 +494,37 @@ export const templateFileSchema = z
 
       // Every {{reference}} must point at a field that exists. A typo here
       // renders the braces literally, which looks like the app is broken.
+      /*
+        A chart sized to its content has no content to size to — the plot is
+        absolutely positioned inside its box, so without one it collapses to
+        nothing and the layer silently does not appear.
+      */
+      if (layer.type === "chart" && (layer.box.w === undefined || layer.box.h === undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["layers", i, "box"],
+          message: "a chart needs both `w` and `h` — it cannot size to its contents",
+        });
+      }
+
       const refs =
         layer.type === "text"
           ? [layer.value]
           : layer.type === "image"
             ? [layer.src]
-            : [];
+            : layer.type === "chart"
+              ? [layer.data, layer.annotations ?? ""]
+              : [];
       for (const source of refs) {
         for (const match of source.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)) {
           if (!seen.has(match[1])) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              path: ["layers", i, layer.type === "text" ? "value" : "src"],
+              path: [
+            "layers",
+            i,
+            layer.type === "text" ? "value" : layer.type === "chart" ? "data" : "src",
+          ],
               message: `{{${match[1]}}} does not match any field — declare it in "fields" or fix the spelling`,
             });
           }

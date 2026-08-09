@@ -18,6 +18,7 @@ import {
 import { customToEntry, isCustomEntry, customRenderProps } from "@engine/authoring/toEntry";
 import { AddTemplate } from "./AddTemplate";
 import { loadTemplates, removeTemplate, subscribeTemplates } from "./customTemplates";
+import { findChartKeys } from "./chartKeys";
 import { SchemaForm } from "./SchemaForm";
 import { BuildStage } from "./BuildStage";
 import { clearEditing, setMode, useEditing } from "./editing";
@@ -537,9 +538,12 @@ const EditScreen: React.FC<{
    */
   const { mode } = useEditing();
 
-  /** Only a chart has anything to build. Everything else is preview-only. */
-  const buildable =
-    Array.isArray(props.bars) && Array.isArray(props.annotations);
+  /**
+   * Only a chart has anything to build, and it is found by shape rather than
+   * by field name — a pasted template names its own fields.
+   */
+  const chartKeys = useMemo(() => findChartKeys(props), [props]);
+  const buildable = chartKeys !== null;
 
   // The store outlives this screen, so leaving has to put it back.
   useEffect(() => clearEditing, []);
@@ -831,13 +835,13 @@ const EditScreen: React.FC<{
                   }
             }
           >
-            {mode === "build" && buildable ? (
+            {mode === "build" && chartKeys ? (
               <BuildStage
-                bars={props.bars as never}
+                bars={props[chartKeys.bars] as never}
                 futureBars={Number(props.futureBars ?? 0)}
-                annotations={(props.annotations as never) ?? []}
+                annotations={(props[chartKeys.annotations] as never) ?? []}
                 onChange={(next) =>
-                  setProps((p) => ({ ...p, annotations: next as never }))
+                  setProps((p) => ({ ...p, [chartKeys.annotations]: next as never }))
                 }
               />
             ) : (

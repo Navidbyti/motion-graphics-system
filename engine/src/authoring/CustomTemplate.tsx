@@ -29,6 +29,10 @@ import { radius as radiusTokens, safe, shadow as shadowTokens, type, weight } fr
 import { EASE, enter, sec } from "../motion";
 import { useLayout } from "../layout";
 import { detectDirection } from "../layout";
+import { Plot } from "../charting/Plot";
+import { AnnotationLayer } from "../charting/AnnotationLayer";
+import { annotationPrices, type Annotation } from "../charting/annotations";
+import { priceScale, type Bar } from "../charting/geometry";
 import type { TemplateFile, TemplateLayer } from "./format";
 
 export type CustomTemplateProps = {
@@ -47,6 +51,16 @@ export type CustomTemplateProps = {
  * ------------------------------------------------------------------ */
 
 const MUSTACHE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+
+/**
+ * A number, or zero.
+ *
+ * Chart rows arrive from a spreadsheet paste or a market fetch, so a blank cell
+ * or a stray string is routine. NaN propagates silently through every scale
+ * calculation and comes out as a chart with no bars and no error.
+ */
+const num = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) ? v : 0;
 
 /**
  * `{{field}}` → the editor's value.
@@ -345,6 +359,100 @@ const Layer: React.FC<{
         <Img
           src={src}
           style={{ width: "100%", height: "100%", objectFit: layer.fit, display: "block" }}
+        />
+      </div>
+    );
+  }
+
+  if (layer.type === "chart") {
+    /*
+      The field reference resolves to the array itself, not to a string. `fill`
+      is for text; a chart needs the data, so the key is read out directly.
+    */
+    const key = layer.data.replace(/[{}\s]/g, "");
+    const raw = values[key];
+    const rows = Array.isArray(raw) ? raw : [];
+
+    // A line's series is label/value; candles are OHLC. Both become bars so the
+    // plot and the geometry have one shape to reason about.
+    const bars: Bar[] =
+      layer.kind === "line"
+        ? rows.map((r) => {
+            const v = num((r as { value?: unknown }).value);
+            return { open: v, high: v, low: v, close: v };
+          })
+        : rows.map((r) => {
+            const b = r as Partial<Bar>;
+            return {
+              open: num(b.open),
+              high: num(b.high),
+              low: num(b.low),
+              close: num(b.close),
+            };
+          });
+
+    // Two bars is the minimum a scale can be built from; below that every price
+    // maps to the same pixel and the chart is a flat line at the top.
+    if (bars.length < 2) return null;
+
+    const annotationKey = layer.annotations?.replace(/[{}\s]/g, "");
+    const rawAnnotations = annotationKey ? values[annotationKey] : undefined;
+    const annotations = Array.isArray(rawAnnotations)
+      ? (rawAnnotations as Annotation[])
+      : [];
+
+    const scale = priceScale(
+      bars,
+      annotationPrices(annotations),
+      0.08,
+      layer.futureBars,
+    );
+
+    const drawFrames = Math.max(sec(layer.drawSeconds, fps), 1);
+    const drawn = interpolate(frame, [0, drawFrames], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: EASE.out,
+    });
+
+    return (
+      <div style={frameStyle}>
+        <Plot
+          kind={layer.kind}
+          bars={bars}
+          scale={scale}
+          palette={palette}
+          progress={drawn}
+          stroke={px(1.4)}
+        />
+        {/*
+          A sibling, positioned over the same box — see the note in Plot. Also
+          second in the DOM so the shapes sit above the price rather than under
+          it, which is the whole point of an annotation.
+        */}
+        <AnnotationLayer
+            annotations={annotations}
+            /*
+              Beats are generated rather than declared. The beat sheet is the
+              Chart Analysis template's own instrument and inventing a syntax
+              for it here would be a second timeline language to learn. Shapes
+              appear in array order once the price has drawn, which is the
+              reading people expect: here is what happened, now here is what to
+              notice about it.
+            */
+            beats={annotations.map((a, n) => ({
+              target: a.id,
+              at: n * 0.35,
+              duration: 0.6,
+              effect: "draw" as const,
+            }))}
+            scale={scale}
+            palette={palette}
+            frame={frame}
+            fps={fps}
+            chartReadyFrame={drawFrames}
+            px={px}
+          decimals={layer.decimals}
         />
       </div>
     );

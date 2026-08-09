@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { zColor } from "@remotion/zod-types";
+import { annotationSchema } from "../charting/annotations";
 import type { TemplateField } from "./format";
 
 /**
@@ -61,6 +62,46 @@ const oneField = (field: TemplateField): z.ZodTypeAny => {
           .enum(field.options.map((o) => o.value) as [string, ...string[]])
           .default(field.default),
       );
+
+    /*
+      The SHAPE is the interface here, not a flag.
+
+      SchemaForm looks at an array-of-objects' column names: open/high/low/close
+      gets the Yahoo fetch and the paste-from-spreadsheet box, label/value gets
+      the same for a series, and the annotation union gets the list editor and
+      Build mode's drag handles. Emitting the identical schema a built-in chart
+      declares is what hands a pasted template that entire workflow without a
+      line of app code knowing pasted templates exist.
+    */
+    case "bars":
+      return described(
+        field,
+        z
+          .array(
+            z.object({
+              open: z.number(),
+              high: z.number(),
+              low: z.number(),
+              close: z.number(),
+            }),
+          )
+          .min(2)
+          .max(field.maxRows)
+          .default(field.default),
+      );
+
+    case "series":
+      return described(
+        field,
+        z
+          .array(z.object({ label: z.string(), value: z.number() }))
+          .min(2)
+          .max(field.maxRows)
+          .default(field.default),
+      );
+
+    case "annotations":
+      return described(field, z.array(annotationSchema).default([]));
 
     case "image":
       // A data URL, supplied by the editor. Long, and never worth showing in a

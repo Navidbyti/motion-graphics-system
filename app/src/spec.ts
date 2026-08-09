@@ -26,7 +26,7 @@ import {
   TYPE_SIZES,
   WEIGHTS,
 } from "@engine/authoring/format";
-import { exampleTemplateJson } from "@engine/authoring/example";
+import { exampleChartJson, exampleTemplateJson } from "@engine/authoring/example";
 
 const list = (values: readonly string[]) => values.map((v) => `\`${v}\``).join(", ");
 
@@ -65,6 +65,11 @@ Every field has \`key\`, \`label\`, an optional \`help\`, and a \`type\`:
 - \`color\` — optional \`default\`; **omit it so the colour follows the brand**
 - \`choice\` — \`options\`: [{ "value", "label" }], and a \`default\` that is one of them
 - \`image\` — the user supplies the picture; you cannot ship one
+- \`bars\` — candles (open/high/low/close). Ship 6–10 rows as a sample; the user
+  fetches real prices or pastes them from a spreadsheet
+- \`series\` — labelled values for a line chart: [{ "label", "value" }]
+- \`annotations\` — zones, levels and trendlines the user draws. No \`default\`;
+  it always starts empty
 
 \`key\` must be a plain identifier: letters, digits, underscores.
 
@@ -135,6 +140,28 @@ a graphic. 0.15–0.3s between related items is a good default.
 ### type: "logo"
 Draws the brand's logo. Nothing to configure.
 
+### type: "chart"
+\`\`\`
+{ "id": "plot", "type": "chart", "kind": "candles",
+  "data": "{{bars}}", "annotations": "{{marks}}",
+  "futureBars": 6, "decimals": 4, "drawSeconds": 1.8,
+  "box": { "x": 50, "y": 58, "w": 100, "h": 66, "anchor": "center" },
+  "motion": { "in": "none", "at": 0.3 } }
+\`\`\`
+- \`kind\`: \`candles\` needs a \`bars\` field; \`line\` needs a \`series\` field.
+- \`data\` points at that field. **The prices are never in the template** — a
+  chart with data baked in is a picture of one moment.
+- \`annotations\` points at an \`annotations\` field. Include one on any chart
+  someone might want to mark up: it is what gives the user zones, levels,
+  trendlines and the drag handles to place them.
+- \`futureBars\` keeps empty slots clear at the right. Use 4–8 so the last
+  candle is not jammed against the edge.
+- \`decimals\` is how many places any printed price shows. Four for forex, two
+  for most things.
+- **A chart must have both \`w\` and \`h\`** — it cannot size to its contents.
+- Use \`"in": "none"\` — the chart has its own draw-in, and an entrance on top
+  of it fights the reveal.
+
 ## Colours
 
 Name a role, never a hex code:
@@ -172,6 +199,15 @@ that matters most in the graphic, not for everything.
 
 \`\`\`json
 ${exampleTemplateJson}
+\`\`\`
+
+## A chart example
+
+Three pieces have to line up: a \`bars\` field, a \`chart\` layer pointing at it,
+and an \`annotations\` field if the user should be able to mark it up.
+
+\`\`\`json
+${exampleChartJson}
 \`\`\`
 
 ---
