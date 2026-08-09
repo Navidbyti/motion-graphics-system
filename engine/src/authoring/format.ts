@@ -380,6 +380,26 @@ export const layerSchema = z.discriminatedUnion("type", [
 
   z.object({
     ...layerBase,
+    type: z.literal("macd"),
+    /**
+     * `{{fieldKey}}` of the SAME `bars` field the chart above uses. Two panels
+     * of the same prices is the whole point; pointing them at different data
+     * makes a graphic that quietly contradicts itself.
+     */
+    data: z.string(),
+    fastPeriod: z.number().int().min(2).max(200).default(12),
+    slowPeriod: z.number().int().min(3).max(400).default(26),
+    /** The signal line — the average of the MACD line itself. */
+    signalPeriod: z.number().int().min(2).max(200).default(9),
+    lineColor: colorValue.default("primary"),
+    signalColor: colorValue.default("accent"),
+    /** Bars between the two lines. This is the thing people look at. */
+    showHistogram: z.boolean().default(true),
+    drawSeconds: z.number().min(0.1).max(20).default(1.6),
+  }),
+
+  z.object({
+    ...layerBase,
     type: z.literal("chart"),
     kind: z.enum(["candles", "line"]).default("candles"),
     /**
@@ -557,11 +577,14 @@ export const templateFileSchema = z
         absolutely positioned inside its box, so without one it collapses to
         nothing and the layer silently does not appear.
       */
-      if (layer.type === "chart" && (layer.box.w === undefined || layer.box.h === undefined)) {
+      if (
+        (layer.type === "chart" || layer.type === "macd") &&
+        (layer.box.w === undefined || layer.box.h === undefined)
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["layers", i, "box"],
-          message: "a chart needs both `w` and `h` — it cannot size to its contents",
+          message: "a chart panel needs both `w` and `h` — it cannot size to its contents",
         });
       }
 
@@ -593,7 +616,9 @@ export const templateFileSchema = z
             ? [layer.src]
             : layer.type === "chart"
               ? [layer.data, layer.annotations ?? ""]
-              : [];
+              : layer.type === "macd"
+                ? [layer.data]
+                : [];
       for (const source of refs) {
         for (const match of source.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)) {
           if (!seen.has(match[1])) {
@@ -602,7 +627,11 @@ export const templateFileSchema = z
               path: [
             "layers",
             i,
-            layer.type === "text" ? "value" : layer.type === "chart" ? "data" : "src",
+            layer.type === "text"
+              ? "value"
+              : layer.type === "chart" || layer.type === "macd"
+                ? "data"
+                : "src",
           ],
               message: `{{${match[1]}}} does not match any field — declare it in "fields" or fix the spelling`,
             });

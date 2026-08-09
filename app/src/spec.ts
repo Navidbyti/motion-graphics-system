@@ -188,6 +188,23 @@ Draws the brand's logo. Nothing to configure.
 - Use \`"in": "none"\` — the chart has its own draw-in, and an entrance on top
   of it fights the reveal.
 
+### type: "macd"
+The lower panel every charting app has: the MACD line, the signal line, and the
+histogram between them.
+\`\`\`
+{ "id": "macd", "type": "macd", "data": "{{bars}}",
+  "fastPeriod": 12, "slowPeriod": 26, "signalPeriod": 9,
+  "showHistogram": true, "drawSeconds": 1.6,
+  "box": { "x": 50, "y": 82, "w": 100, "h": 26, "anchor": "center" },
+  "motion": { "in": "none", "at": 2.5 } }
+\`\`\`
+- Point \`data\` at the **same** \`bars\` field the chart above uses.
+- Needs \`w\` and \`h\`, like any chart.
+- The panel is scaled around zero and draws its own zero line.
+- **Use this whenever someone says "MACD", "histogram" or "indicator panel".**
+  Two averages shaded on the price chart is a different graphic, not a
+  substitute — if they ask for both, use both.
+
 #### Overlays — moving averages, computed for you
 
 This is how you get a MACD, an EMA crossover, or any average. **You never
@@ -261,7 +278,8 @@ templates come from reaching for text layers when a real feature exists.
 | They asked for | Use |
 | --- | --- |
 | A moving average, EMA, SMA | \`overlays\` on a chart layer |
-| MACD, an EMA crossover, "the gap between the lines" | two \`overlays\` + \`shadeBetween\` |
+| A MACD panel, histogram, signal line | a \`macd\` layer below the chart |
+| "The gap between the two averages", shaded | two \`overlays\` + \`shadeBetween\` |
 | Support, resistance, a zone, a trendline | an \`annotations\` field on the chart |
 | A price chart at all | a \`bars\` field + a \`chart\` layer |
 | A line/trend of plain values | a \`series\` field + \`"kind": "line"\` |

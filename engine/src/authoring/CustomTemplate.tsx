@@ -30,6 +30,7 @@ import { EASE, enter, sec } from "../motion";
 import { useLayout } from "../layout";
 import { detectDirection } from "../layout";
 import { Plot } from "../charting/Plot";
+import { MacdPanel } from "../charting/MacdPanel";
 import { AnnotationLayer } from "../charting/AnnotationLayer";
 import { annotationPrices, type Annotation } from "../charting/annotations";
 import { priceScale, type Bar } from "../charting/geometry";
@@ -371,6 +372,53 @@ const Layer: React.FC<{
         <Img
           src={src}
           style={{ width: "100%", height: "100%", objectFit: layer.fit, display: "block" }}
+        />
+      </div>
+    );
+  }
+
+  if (layer.type === "macd") {
+    const key = layer.data.replace(/[{}\s]/g, "");
+    const raw = values[key];
+    const rows = Array.isArray(raw) ? raw : [];
+    const bars: Bar[] = rows.map((r) => {
+      const b = r as Partial<Bar>;
+      return {
+        open: num(b.open),
+        high: num(b.high),
+        low: num(b.low),
+        close: num(b.close),
+      };
+    });
+    // The slow EMA needs room to mean anything; below that the panel is noise.
+    if (bars.length < layer.slowPeriod) return null;
+
+    /*
+      No `futureBars` and no annotation prices — the panel's own scale is
+      symmetric around zero, so it only needs the slot count to line its bars
+      up with the candles above it.
+    */
+    const scale = priceScale(bars, [], 0.08, 0);
+    const drawFrames = Math.max(sec(layer.drawSeconds, fps), 1);
+
+    return (
+      <div style={frameStyle}>
+        <MacdPanel
+          bars={bars}
+          scale={scale}
+          palette={palette}
+          fastPeriod={layer.fastPeriod}
+          slowPeriod={layer.slowPeriod}
+          signalPeriod={layer.signalPeriod}
+          lineColor={resolveColor(layer.lineColor, palette, values) ?? palette.primary}
+          signalColor={resolveColor(layer.signalColor, palette, values) ?? palette.accent}
+          showHistogram={layer.showHistogram}
+          stroke={px(1.4)}
+          progress={interpolate(frame, [0, drawFrames], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+            easing: EASE.out,
+          })}
         />
       </div>
     );

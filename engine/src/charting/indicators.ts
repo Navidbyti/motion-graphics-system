@@ -66,6 +66,34 @@ export const indicator = (
 };
 
 /**
+ * MACD, properly: the two lines and the histogram between them.
+ *
+ * Computed here rather than assembled from two `overlays` because the histogram
+ * is a third series derived from the first two, and a template has no way to
+ * subtract one array from another. It is also the shape people recognise — the
+ * lower panel of every charting app — and a shaded gap on the price chart is
+ * the same information drawn differently, not a substitute.
+ */
+export const macd = (
+  bars: Bar[],
+  fastPeriod = 12,
+  slowPeriod = 26,
+  signalPeriod = 9,
+) => {
+  const closes = bars.map((b) => b.close);
+  const fast = ema(closes, fastPeriod);
+  const slow = ema(closes, slowPeriod);
+  const line = fast.map((v, i) => v - slow[i]);
+  const signal = ema(line, signalPeriod);
+  return {
+    line,
+    signal,
+    /** Positive when momentum is building, negative when it is fading. */
+    histogram: line.map((v, i) => v - signal[i]),
+  };
+};
+
+/**
  * How many bars at the left are still settling.
  *
  * An EMA seeded from one value takes roughly a period and a half to stop being

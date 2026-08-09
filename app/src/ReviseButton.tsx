@@ -114,6 +114,11 @@ export const ReviseButton: React.FC<{
   const [complaint, setComplaint] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The validator's actual complaints, kept so they can be shown. */
+  const [problems, setProblems] = useState<{ where: string; what: string }[]>([]);
+  /** What the model produced when it failed — usually close, worth keeping. */
+  const [draft, setDraft] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
 
   const ai = loadAi();
@@ -121,6 +126,8 @@ export const ReviseButton: React.FC<{
 
   const run = async () => {
     setError(null);
+    setProblems([]);
+    setDraft(null);
     setUsage(null);
 
     if (overBudget(ai)) {
@@ -162,6 +169,8 @@ export const ReviseButton: React.FC<{
         setUsage(err.usage);
       }
       setError(err.message);
+      setProblems(err.problems ?? []);
+      setDraft(err.draft ?? null);
     } finally {
       setBusy(null);
     }
@@ -184,14 +193,23 @@ export const ReviseButton: React.FC<{
         </button>
       </div>
 
-      <input
-        type="text"
+      {/*
+        A textarea, because the useful complaints are not one-liners. The first
+        version was a single-line input and someone typed three separate
+        requirements into it, unable to see what they had written.
+      */}
+      <textarea
+        className="revise-input"
         value={complaint}
         autoFocus
-        placeholder="The caption sits on top of the candles"
+        rows={4}
+        placeholder={
+          "The candles move too violently — make it a gentler trend.\nPut the MACD and histogram in the lower panel."
+        }
         onChange={(e) => setComplaint(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !busy) run();
+          // Enter alone inserts a newline; Ctrl/Cmd-Enter submits.
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !busy) run();
         }}
         disabled={Boolean(busy)}
       />
@@ -212,9 +230,58 @@ export const ReviseButton: React.FC<{
         </button>
       </div>
 
-      {error ? <p className="error small">{error}</p> : null}
+      {error ? (
+        <div className="revise-error">
+          <p className="error small">{error}</p>
+
+          {/*
+            The exact complaints, not a summary of them.
+
+            reviseTemplate returns the validator's issues with real field paths
+            and the draft that failed, and the first version of this dropped
+            both and printed one sentence. "Try describing the problem
+            differently" is not something anyone can act on — it does not say
+            whether the model misunderstood, produced something the format
+            forbids, or broke a field that was fine.
+          */}
+          {problems.length ? (
+            <ul className="small">
+              {problems.map((p, i) => (
+                <li key={i}>
+                  <strong>{p.where}</strong> — {p.what}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {draft ? (
+            <div className="btn-group">
+              <button
+                className="link"
+                onClick={() => {
+                  navigator.clipboard.writeText(draft);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1600);
+                }}
+              >
+                {copied ? "Copied ✓" : "Copy what it produced"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {usage ? (
-        <p className="muted small">Cost ${usage.cost.toFixed(4)}.</p>
+        <p className="muted small">
+          {/*
+            An unpriced model showed "$0.0000", which reads as free rather than
+            as unknown. Silence about a number we do not have beats a confident
+            wrong one.
+          */}
+          {usage.cost > 0
+            ? `Cost $${usage.cost.toFixed(4)}.`
+            : "Cost unknown for this model."}
+        </p>
       ) : null}
     </div>
   );
