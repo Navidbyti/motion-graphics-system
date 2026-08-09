@@ -14,12 +14,19 @@
  */
 
 import React from "react";
-import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  Img,
+  Sequence,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { getBrand } from "../brand/brands";
 import { useTheme } from "../brand/useTheme";
 import type { ThemeInput } from "../brand/theme";
 import { radius as radiusTokens, safe, shadow as shadowTokens, type, weight } from "../brand/tokens";
-import { EASE, enter, exit, sec } from "../motion";
+import { EASE, enter, sec } from "../motion";
 import { useLayout } from "../layout";
 import { detectDirection } from "../layout";
 import type { TemplateFile, TemplateLayer } from "./format";
@@ -103,13 +110,21 @@ const Layer: React.FC<{
   brand: ReturnType<typeof getBrand>;
   layout: ReturnType<typeof useLayout>;
   fallbackDirection: "auto" | "ltr" | "rtl";
-}> = ({ layer, values, brand, layout, fallbackDirection }) => {
+  /** How long this layer is mounted, from its own start. */
+  layerFrames: number;
+}> = ({ layer, values, brand, layout, fallbackDirection, layerFrames }) => {
+  /*
+    Zero at the layer's own start, because the parent wraps this in a
+    <Sequence>. Every delay calculation below is therefore relative and there is
+    no `at` arithmetic to get wrong — the frame the layer thinks it is on IS the
+    frame since it appeared. Remotion also unmounts the whole subtree outside
+    the window, so a forty-layer template is not compositing forty invisible
+    boxes on every frame of the render.
+  */
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps } = useVideoConfig();
   const { px, width, height, isVertical } = layout;
   const { palette } = brand;
-
-  const delay = sec(layer.motion.at, fps);
 
   /*
     Entrance progress. `enter` is a spring whose character comes from the brand,
@@ -118,31 +133,26 @@ const Layer: React.FC<{
     than under a premium one, without the template knowing either exists.
   */
   const progress =
-    layer.motion.in === "none" ? (frame >= delay ? 1 : 0) : enter({ frame, fps, delay, spring: brand.motion.entrance });
+    layer.motion.in === "none"
+      ? 1
+      : enter({ frame, fps, spring: brand.motion.entrance });
 
   /*
-    Leaving. `until` wins if it is set, otherwise the layer rides the
-    composition's own ending. Exits run shorter than entrances by design: the
+    Leaving, timed backwards from the end of this layer's own window rather
+    than the composition's. A layer with `until` and one that runs to the end
+    are then the same calculation, and exits stay shorter than entrances — the
     viewer has already read it.
   */
   const exitSeconds = 0.35;
   const leaving =
-    layer.motion.until !== undefined
+    layer.motion.until !== undefined || layer.motion.out
       ? interpolate(
           frame,
-          [sec(layer.motion.until - exitSeconds, fps), sec(layer.motion.until, fps)],
+          [layerFrames - sec(exitSeconds, fps), layerFrames],
           [1, 0],
           { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE.out },
         )
-      : layer.motion.out
-        ? exit({ frame, fps, durationInFrames, duration: exitSeconds })
-        : 1;
-
-  // Nothing to draw before it arrives. Worth an early return rather than a
-  // zero-opacity element: a 40-layer template would otherwise composite forty
-  // invisible boxes on every frame of the render.
-  if (frame < delay && layer.motion.in !== "none") return null;
-  if (leaving <= 0) return null;
+      : 1;
 
   /* ------------------------------- placement ------------------------------ */
 
@@ -160,12 +170,19 @@ const Layer: React.FC<{
 
   const [shiftX, shiftY] = ANCHOR_SHIFT[layer.box.anchor] ?? ANCHOR_SHIFT.center;
 
-  const entranceTransform =
-    layer.motion.in === "fadeUp"
-      ? `translateY(${interpolate(progress, [0, 1], [px(48), 0])}px)`
-      : layer.motion.in === "scaleIn"
-        ? `scale(${interpolate(progress, [0, 1], [0.94, 1])})`
-        : "";
+  /*
+    The individual `translate` / `rotate` / `scale` properties, not a `transform`
+    string.
+
+    Three things move this box at once: the anchor offset, the layer's own
+    rotation, and the entrance. Concatenated into one `transform` the result
+    depends on the order they happen to be written in — scale after translate
+    scales the anchor offset too, which shifts the element as it grows. As
+    separate properties the browser applies them in a fixed, defined order, so
+    the three cannot interfere with each other however a template combines them.
+  */
+  const entranceOffset =
+    layer.motion.in === "fadeUp" ? interpolate(progress, [0, 1], [px(48), 0]) : 0;
 
   const opacity =
     layer.opacity *
@@ -180,13 +197,12 @@ const Layer: React.FC<{
     top: inset.top + (layer.box.y / 100) * availableH,
     width: layer.box.w === undefined ? undefined : (layer.box.w / 100) * availableW,
     height: layer.box.h === undefined ? undefined : (layer.box.h / 100) * availableH,
-    transform: [
-      `translate(${shiftX}%, ${shiftY}%)`,
-      layer.box.rotate ? `rotate(${layer.box.rotate}deg)` : "",
-      entranceTransform,
-    ]
-      .filter(Boolean)
-      .join(" "),
+    translate: `${shiftX}% calc(${shiftY}% + ${entranceOffset}px)`,
+    rotate: layer.box.rotate ? `${layer.box.rotate}deg` : undefined,
+    scale:
+      layer.motion.in === "scaleIn"
+        ? String(interpolate(progress, [0, 1], [0.94, 1]))
+        : undefined,
     opacity,
     // Only meaningful for wipeUp; harmless otherwise.
     clipPath:
@@ -253,7 +269,8 @@ const Layer: React.FC<{
             const wordProgress = enter({
               frame,
               fps,
-              delay: delay + Math.floor(i / 2) * step,
+              // `i / 2` because the split keeps the whitespace as its own item.
+              delay: Math.floor(i / 2) * step,
               spring: brand.motion.entrance,
             });
             return (
@@ -315,7 +332,17 @@ const Layer: React.FC<{
     if (!src) return null;
     return (
       <div style={{ ...frameStyle, overflow: "hidden", borderRadius: px(RADIUS[layer.radius] ?? 0) }}>
-        <img
+        {/*
+          Remotion's <Img>, never a bare <img>.
+
+          A bare tag does not participate in the render's readiness check, so a
+          frame can be captured before the image has decoded — the export comes
+          out with a blank where the picture should be, intermittently, and only
+          sometimes. <Img> holds the frame until it has loaded. This is the
+          first image path in the codebase, so there was no existing usage to
+          copy the right answer from.
+        */}
+        <Img
           src={src}
           style={{ width: "100%", height: "100%", objectFit: layer.fit, display: "block" }}
         />
@@ -331,7 +358,7 @@ const Layer: React.FC<{
     const tint = resolveColor(layer.tint, palette, values);
     return (
       <div style={frameStyle}>
-        <img
+        <Img
           src={src}
           style={{
             height: layer.box.h === undefined ? px(80) : "100%",
@@ -360,24 +387,51 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
   useTheme(brandId, theme);
   const brand = getBrand(brandId);
   const layout = useLayout({ scale, direction });
+  const { fps, durationInFrames } = useVideoConfig();
 
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
+    <AbsoluteFill>
       {/*
         Array order is drawing order — later layers sit on top. The same rule
         the annotation list uses, so there is one thing to learn rather than two.
       */}
-      {template.layers.map((layer) => (
-        <Layer
-          key={layer.id}
-          layer={layer}
-          values={values}
-          brand={brand}
-          layout={layout}
-          fallbackDirection={direction}
-        />
-      ))}
-    </div>
+      {template.layers.map((layer) => {
+        const from = sec(layer.motion.at, fps);
+        /*
+          A layer runs until its own `until`, or to the end of the graphic.
+          Clamped to at least one frame: a template can be shortened after its
+          layers were placed, and a zero or negative duration is a Remotion
+          error rather than an invisible layer. The paste step rejects a layer
+          starting past the end, but `seconds` can be edited afterwards.
+        */
+        const layerFrames = Math.max(
+          1,
+          (layer.motion.until === undefined
+            ? durationInFrames
+            : sec(layer.motion.until, fps)) - from,
+        );
+
+        return (
+          <Sequence
+            key={layer.id}
+            from={from}
+            durationInFrames={layerFrames}
+            // No wrapper element: the layer positions itself absolutely, and a
+            // Sequence div in between would become the containing block.
+            layout="none"
+          >
+            <Layer
+              layer={layer}
+              values={values}
+              brand={brand}
+              layout={layout}
+              fallbackDirection={direction}
+              layerFrames={layerFrames}
+            />
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
   );
 };
 
