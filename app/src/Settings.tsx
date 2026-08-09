@@ -10,6 +10,8 @@
  */
 
 import { useEffect, useState } from "react";
+import { loadAi, loadSpend, saveAi, subscribeAi } from "./aiSettings";
+import { MODELS } from "./generate";
 import { BUNDLED_FONTS, defaultTheme, type ThemeInput } from "@engine/brand/theme";
 
 const STORAGE_KEY = "mg.customTheme";
@@ -285,6 +287,107 @@ export const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         render. Any other font name relies on that font being installed on the
         machine doing the render.
       </p>
+
+      <AiPanel />
     </main>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * The Gemini key, and the guard rails around it.
+ *
+ * Optional throughout. Everything the app does works without a key — the
+ * manual copy-paste route is not a fallback, it is the same feature done by
+ * hand — so this reads as an accelerator rather than a requirement.
+ */
+const AiPanel: React.FC = () => {
+  const [ai, setAi] = useState(loadAi);
+  const [spend, setSpend] = useState(loadSpend);
+  const [shown, setShown] = useState(false);
+
+  useEffect(
+    () =>
+      subscribeAi(() => {
+        setAi(loadAi());
+        setSpend(loadSpend());
+      }),
+    [],
+  );
+
+  const update = (patch: Partial<ReturnType<typeof loadAi>>) => {
+    saveAi(patch);
+    setAi(loadAi());
+  };
+
+  return (
+    <section className="ai-panel">
+      <h2>Write templates with AI</h2>
+      <p className="muted">
+        Optional. With a key, <strong>Add a template</strong> can write one from a
+        description and fix its own mistakes against the validator. Without one,
+        everything still works — you copy the instructions into any AI chat and paste
+        the reply back.
+      </p>
+
+      <label className="field">
+        <span className="field-label">Gemini API key</span>
+        <div className="color-row">
+          <input
+            type={shown ? "text" : "password"}
+            value={ai.apiKey}
+            placeholder="AIza…"
+            spellCheck={false}
+            onChange={(e) => update({ apiKey: e.target.value.trim() })}
+          />
+          <button onClick={() => setShown((s) => !s)}>{shown ? "Hide" : "Show"}</button>
+        </div>
+      </label>
+      <p className="muted small">
+        {/*
+          Said plainly, because "where does my key go" is the first thing anyone
+          sensible asks, and the answer here is genuinely good.
+        */}
+        Stored on this machine only. It is sent to Google and nowhere else — not to
+        us, and not into anything the app uploads. Get one free at{" "}
+        <code>aistudio.google.com/apikey</code>.
+      </p>
+
+      <label className="field">
+        <span className="field-label">Model</span>
+        <select
+          value={ai.model}
+          onChange={(e) => update({ model: e.target.value as typeof ai.model })}
+        >
+          {(Object.keys(MODELS) as (keyof typeof MODELS)[]).map((m) => (
+            <option key={m} value={m}>
+              {MODELS[m].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted small">{MODELS[ai.model].hint}</p>
+
+      <label className="field">
+        <span className="field-label">
+          Monthly limit — ${ai.monthlyCap.toFixed(2)}
+          {ai.monthlyCap === 0 ? " (no limit)" : ""}
+        </span>
+        <input
+          type="number"
+          min={0}
+          max={200}
+          step={1}
+          value={ai.monthlyCap}
+          onChange={(e) => update({ monthlyCap: Math.max(0, Number(e.target.value)) })}
+        />
+      </label>
+      <p className="muted small">
+        Checked before each generation, not after, so the limit is never crossed by
+        one. Used this month: <strong>${spend.cost.toFixed(3)}</strong> over{" "}
+        {spend.calls} {spend.calls === 1 ? "generation" : "generations"}.
+      </p>
+    </section>
   );
 };

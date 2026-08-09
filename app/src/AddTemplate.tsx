@@ -11,10 +11,18 @@
  * they press one button, paste that into the chat, and paste the reply back.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { templateFileSchema, type TemplateFile } from "@engine/authoring/format";
 import { saveTemplate } from "./customTemplates";
 import { specForAI } from "./spec";
+import {
+  GenerateError,
+  MODELS,
+  costOf,
+  generateTemplate,
+  type Usage,
+} from "./generate";
+import { loadAi, loadSpend, overBudget, recordSpend, subscribeAi } from "./aiSettings";
 
 /**
  * Get to the JSON inside whatever was pasted.
@@ -56,6 +64,85 @@ export const AddTemplate: React.FC<{
   const [text, setText] = useState("");
   const [problems, setProblems] = useState<Problem[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  /* ------------------------- the automatic route ------------------------- */
+
+  const [ai, setAi] = useState(loadAi);
+  const [spend, setSpend] = useState(loadSpend);
+  useEffect(
+    () =>
+      subscribeAi(() => {
+        setAi(loadAi());
+        setSpend(loadSpend());
+      }),
+    [],
+  );
+
+  const [request, setRequest] = useState("");
+  const [reference, setReference] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
+  const abort = useRef<AbortController | null>(null);
+
+  const blocked = overBudget(ai, spend);
+
+  const attachReference = async (file?: File) => {
+    if (!file) return;
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    setReference(`data:${file.type || "image/png"};base64,${btoa(binary)}`);
+  };
+
+  const generate = async () => {
+    setProblems(null);
+    setUsage(null);
+    abort.current = new AbortController();
+    setBusy("Writing the template…");
+
+    try {
+      const result = await generateTemplate({
+        key: ai.apiKey,
+        model: ai.model,
+        spec: specForAI(),
+        request,
+        image: reference,
+        signal: abort.current.signal,
+        onProgress: ({ stage, attempt }) =>
+          setBusy(
+            stage === "writing"
+              ? "Writing the template…"
+              : `Fixing it — attempt ${attempt} of 3…`,
+          ),
+      });
+
+      recordSpend(result.usage.cost);
+      setUsage(result.usage);
+      saveTemplate(result.template);
+      onAdded(result.template);
+    } catch (e) {
+      const err = e as GenerateError;
+      if (err.usage) {
+        // Charged whether or not it succeeded. A spend counter that only counts
+        // successes is not a spend counter.
+        recordSpend(err.usage.cost);
+        setUsage(err.usage);
+      }
+      setProblems([
+        { where: "Gemini", what: err.message },
+        ...(err.problems ?? []),
+      ]);
+      // The closest draft goes into the paste box, so three calls' work is
+      // still there to fix by hand rather than thrown away.
+      if (err.draft) setText(err.draft);
+    } finally {
+      setBusy(null);
+      abort.current = null;
+    }
+  };
 
   const flash = (what: string) => {
     setCopied(what);
@@ -125,8 +212,81 @@ export const AddTemplate: React.FC<{
       </div>
 
       <div className="docs-body add-template">
+        {/*
+          The automatic route first, and only when a key exists. Leading with a
+          feature that cannot run is an advert; leading with the manual route
+          when the automatic one is ready is a step nobody needs.
+        */}
+        {ai.apiKey ? (
+          <section className="add-step add-auto">
+            <div className="row-between">
+              <h3>Describe it and let Gemini write it</h3>
+              <span className="muted small">
+                {MODELS[ai.model].label.split(" — ")[0]} · ~$
+                {costOf(ai.model, 6200, 1200).toFixed(3)} each
+              </span>
+            </div>
+
+            <textarea
+              className="add-request"
+              value={request}
+              onChange={(e) => setRequest(e.target.value)}
+              placeholder="A MACD explainer: grey candles, a blue 12-candle average that draws first, an orange 26 after it, and the gap between them shaded."
+              disabled={Boolean(busy)}
+            />
+
+            <div className="row-between">
+              <label className="upload-btn">
+                {reference ? "Change reference image" : "Add a reference image (optional)"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => attachReference(e.target.files?.[0])}
+                />
+              </label>
+              {reference ? (
+                <button className="link" onClick={() => setReference(null)}>
+                  Remove image
+                </button>
+              ) : null}
+            </div>
+
+            {blocked ? (
+              <p className="error small">
+                You&apos;ve reached this month&apos;s ${ai.monthlyCap.toFixed(2)} limit
+                (${spend.cost.toFixed(3)} used). Raise it in Theme, or paste a template
+                below instead.
+              </p>
+            ) : null}
+
+            <div className="btn-group">
+              <button
+                className="primary"
+                onClick={generate}
+                disabled={Boolean(busy) || !request.trim() || blocked}
+              >
+                {busy ?? "Write it for me"}
+              </button>
+              {busy ? (
+                <button onClick={() => abort.current?.abort()}>Stop</button>
+              ) : null}
+            </div>
+
+            <p className="muted small">
+              ${spend.cost.toFixed(3)} used this month over {spend.calls}{" "}
+              {spend.calls === 1 ? "generation" : "generations"}
+              {ai.monthlyCap > 0 ? ` · limit $${ai.monthlyCap.toFixed(2)}` : ""}
+              {usage
+                ? ` · last one took ${usage.attempts} ${
+                    usage.attempts === 1 ? "try" : "tries"
+                  } and cost $${usage.cost.toFixed(4)}`
+                : ""}
+            </p>
+          </section>
+        ) : null}
+
         <section className="add-step">
-          <h3>1 · Give the AI the instructions</h3>
+          <h3>{ai.apiKey ? "Or do it by hand" : "1 · Give the AI the instructions"}</h3>
           <p className="muted">
             Copy this and paste it into Gemini or ChatGPT, then describe the graphic you
             want underneath it. You can attach a reference image too.
@@ -137,7 +297,10 @@ export const AddTemplate: React.FC<{
         </section>
 
         <section className="add-step">
-          <h3>2 · Paste what it gives you back</h3>
+          {/* The numbering only means anything when the manual route is the
+              only route. With the automatic panel above it, "2" refers to a
+              step that is no longer on the page. */}
+          <h3>{ai.apiKey ? "Paste a template" : "2 · Paste what it gives you back"}</h3>
           <p className="muted">
             Paste the whole reply — the code fences and any text around it are fine.
           </p>
