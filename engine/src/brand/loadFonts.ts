@@ -19,9 +19,18 @@
  * obvious on a timeline.
  */
 
+import { useEffect, useState } from "react";
 import { continueRender, delayRender, staticFile } from "remotion";
+import { MARCELLUS_WOFF2 } from "./fontData";
 
-type Face = { family: string; weight: string; file: string; range?: string };
+type Face = {
+  family: string;
+  weight: string;
+  file?: string;
+  /** Inline base64 src — bypasses staticFile path/timing issues entirely. */
+  dataUri?: string;
+  range?: string;
+};
 
 /**
  * Inter ships as a single variable font — Google serves the identical file for
@@ -35,6 +44,14 @@ const FACES: Face[] = [
   { family: "Poppins", weight: "600", file: "fonts/poppins-600.woff2" },
   { family: "Poppins", weight: "700", file: "fonts/poppins-700.woff2" },
   { family: "Poppins", weight: "900", file: "fonts/poppins-900.woff2" },
+
+  /**
+   * Nestie's own faces, read off nestie.com: Playfair Display 900 carries the
+   * hero line, DM Sans does everything else. Fetched from the jsdelivr mirror
+   * of @fontsource rather than Google — gstatic is geo-blocked here, jsdelivr
+   * is not — then self-hosted like the rest.
+   */
+  { family: "Marcellus", weight: "400", dataUri: MARCELLUS_WOFF2 }, // LOCKED display face (inline)
 
   /**
    * Vazirmatn covers Persian/Arabic script, which Inter and Poppins do not —
@@ -77,21 +94,60 @@ const handle = delayRender("Loading brand fonts");
 if (typeof document === "undefined" || typeof FontFace === "undefined") {
   continueRender(handle);
 } else {
-  Promise.all(
-    FACES.map(async ({ family, weight, file, range }) => {
-      const face = new FontFace(family, `url(${staticFile(file)}) format('woff2')`, {
+  // allSettled, NOT all: with Promise.all, one font failing to load (a missing
+  // file, a rejected face) rejects the whole batch immediately and fires
+  // continueRender EARLY — so slower faces (Marcellus) are captured before they
+  // finish and the frame falls back to a system serif. allSettled waits for
+  // every face to resolve OR fail before the render proceeds, so a single bad
+  // font can't knock out the others. (This is why Marcellus rendered as Playfair
+  // for six attempts while Inter loaded fine — a load race, not a bad file.)
+  Promise.allSettled(
+    FACES.map(async ({ family, weight, file, dataUri, range }) => {
+      const src = dataUri
+        ? `url(${dataUri}) format('woff2')`
+        : `url(${staticFile(file as string)}) format('${(file as string).endsWith(".ttf") ? "truetype" : "woff2"}')`;
+      const face = new FontFace(family, src, {
         weight,
         ...(range ? { unicodeRange: range } : {}),
       });
       document.fonts.add(await face.load());
     }),
-  )
-    .then(() => continueRender(handle))
-    .catch(() => {
-      // Never hang a render over a font. Falling back to the system stack is a
-      // visible cosmetic problem; a stalled render is a broken product.
-      continueRender(handle);
-    });
+  ).then(() => continueRender(handle));
 }
+
+/**
+ * Component-lifecycle font loader — the reliable pattern.
+ *
+ * The module-level delayRender above does NOT gate a `still`/frame render: the
+ * frame is captured before the async FontFace loads finish, so every custom
+ * face silently falls back to a system font (Marcellus -> a serif, Inter ->
+ * Segoe UI). Calling delayRender in state + continueRender in an effect ties
+ * the hold to THIS composition's render, so the frame waits for the fonts.
+ * Call `useBrandFonts()` once at the top of any template that needs them.
+ */
+export const useBrandFonts = (): void => {
+  const [handle] = useState(() => delayRender("brand fonts (component)"));
+  useEffect(() => {
+    let alive = true;
+    Promise.allSettled(
+      FACES.map(async ({ family, weight, file, dataUri, range }) => {
+        const src = dataUri
+          ? `url(${dataUri}) format('woff2')`
+          : `url(${staticFile(file as string)}) format('${(file as string).endsWith(".ttf") ? "truetype" : "woff2"}')`;
+        const face = new FontFace(family, src, {
+          weight,
+          ...(range ? { unicodeRange: range } : {}),
+        });
+        document.fonts.add(await face.load());
+      }),
+    ).then(() => {
+      if (alive) continueRender(handle);
+    });
+    return () => {
+      alive = false;
+      continueRender(handle);
+    };
+  }, [handle]);
+};
 
 export {};

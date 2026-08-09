@@ -7,8 +7,17 @@ import { formats } from "./brand/tokens";
 import { APP_ICON_SIZE, AppIcon } from "./AppIcon";
 import { compositionId, registry } from "./registry";
 import { ALPHA_PROOF_DURATION, AlphaProof } from "./templates/AlphaProof/AlphaProof";
+import {
+  CustomComposition,
+  customCompositionId,
+  customMetadata,
+} from "./authoring/CustomComposition";
+import { customDurationInFrames } from "./authoring/CustomTemplate";
+import { exampleTemplate } from "./authoring/example";
+import { fieldDefaults } from "./authoring/fieldsToZod";
 
-export const FPS = 30;
+export { FPS } from "./fps";
+import { FPS } from "./fps";
 
 /**
  * Render settings for the Overlay preset, in one place.
@@ -69,6 +78,38 @@ export const RemotionRoot: React.FC = () => {
           );
         }),
       )}
+
+      {/*
+        PASTED TEMPLATES.
+
+        One composition per format, and the template itself arrives in
+        inputProps rather than being one of the entries above. That is the
+        whole mechanism: the bundle is built when the app is packaged, so a
+        composition can only exist for a template that existed then. Carrying
+        the definition in props instead means a template written a year later
+        renders through a bundle that has never heard of it, with nothing
+        recompiled and nothing rebuilt.
+
+        `calculateMetadata` reads the duration back out of that same prop, so a
+        pasted template controls its own length exactly as a built-in one does.
+      */}
+      {(Object.keys(formats) as (keyof typeof formats)[]).map((format) => (
+        <Composition
+          key={`Custom-${format}`}
+          id={customCompositionId(format)}
+          component={CustomComposition}
+          defaultProps={{
+            template: exampleTemplate,
+            values: fieldDefaults(exampleTemplate.fields),
+            brand: "hoteldebit",
+          }}
+          durationInFrames={customDurationInFrames(exampleTemplate, FPS)}
+          fps={FPS}
+          width={formats[format].width}
+          height={formats[format].height}
+          calculateMetadata={customMetadata}
+        />
+      ))}
 
       {/* Render target for the app icon. Not a template — never in the Library. */}
       <Composition

@@ -27,6 +27,18 @@ import {
   hookTitleSchema,
   hookTitleSeconds,
 } from "./templates/HookTitle/schema";
+import { NestieEndCard } from "./templates/NestieEndCard/NestieEndCard";
+import { nestieEndCardDefaults, nestieEndCardSchema, nestieEndCardSeconds } from "./templates/NestieEndCard/schema";
+import { Caption } from "./templates/Caption/Caption";
+import { captionDefaults, captionSchema, captionSeconds } from "./templates/Caption/schema";
+import { ShopTheLook } from "./templates/ShopTheLook/ShopTheLook";
+import {
+  shopTheLookDefaults,
+  shopTheLookSchema,
+  shopTheLookSeconds,
+} from "./templates/ShopTheLook/schema";
+import { DoDont } from "./templates/DoDont/DoDont";
+import { doDontDefaults, doDontSchema, doDontSeconds } from "./templates/DoDont/schema";
 import { LowerThird } from "./templates/LowerThird/LowerThird";
 import {
   lowerThirdDefaults,
@@ -199,6 +211,58 @@ const textCard = defineTemplate({
     Math.round(textCardSeconds(props.text, props.animation, props.holdSeconds, props.speed, props.typing && props.background === "native") * fps),
 });
 
+const doDont = defineTemplate({
+  id: "DoDont",
+  title: "Do / Don't",
+  blurb: "A recurring do-this-not-that card. Each pair cycles in turn.",
+  tags: ["text", "tips", "series", "education"],
+  component: DoDont,
+  schema: doDontSchema,
+  defaults: doDontDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(doDontSeconds(props) * fps),
+});
+
+const shopTheLook = defineTemplate({
+  id: "ShopTheLook",
+  title: "Shop the Look",
+  blurb: "Every item in the room with its price, then the full list and a total.",
+  tags: ["list", "price", "series", "makeover", "product"],
+  component: ShopTheLook,
+  schema: shopTheLookSchema,
+  defaults: shopTheLookDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(shopTheLookSeconds(props) * fps),
+});
+
+const caption = defineTemplate({
+  id: "Caption",
+  title: "Caption",
+  blurb: "One editorial line set low over footage, clear of the subject.",
+  tags: ["text", "caption", "overlay", "lower-third"],
+  component: Caption,
+  schema: captionSchema,
+  defaults: captionDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(captionSeconds(props) * fps),
+});
+
+const nestieEndCard = defineTemplate({
+  id: "NestieEndCard",
+  title: "Nestie End Card",
+  blurb: "Brand sign-off with the real logo, built to read over live footage.",
+  tags: ["end", "brand", "outro", "cta"],
+  component: NestieEndCard,
+  schema: nestieEndCardSchema,
+  defaults: nestieEndCardDefaults,
+  formats: FORMATS,
+  overlay: true,
+  durationInFrames: (props, fps) => Math.round(nestieEndCardSeconds(props) * fps),
+});
+
 export const registry: AnyTemplateEntry[] = [
   hookTitle,
   textCard,
@@ -207,6 +271,10 @@ export const registry: AnyTemplateEntry[] = [
   lineChart,
   candleChart,
   priceZone,
+  doDont,
+  shopTheLook,
+  caption,
+  nestieEndCard,
 ];
 
 export const findTemplate = (id: string) => registry.find((t) => t.id === id);

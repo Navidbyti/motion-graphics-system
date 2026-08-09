@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8">
+<style>
+@font-face{font-family:"MarcTest";src:url("marcellus.woff2") format("woff2");}
+body{background:#111;color:#eee;margin:0}
+.m{font-family:"MarcTest",monospace;font-size:60px;padding:20px}
+.f{font-family:monospace;font-size:20px;padding:0 20px;color:#888}
+</style>
+<div class="f" id="s">loading...</div>
+<div class="m">Everything for a home.</div>
+<script>
+document.fonts.load('60px MarcTest').then(function(){
+  document.fonts.ready.then(function(){
+    document.getElementById('s').textContent = document.fonts.check('60px MarcTest') ? 'MarcTest LOADED ok' : 'MarcTest FAILED';
+  });
+});
+</script>

@@ -143,9 +143,51 @@ export const freeHotelCard: BrandDefinition = {
   dark: true,
 };
 
+export const nestie: BrandDefinition = {
+  id: "nestie",
+  name: "Nestie",
+  site: "nestie.com",
+  palette: {
+    // LOCKED — from the client's Brand & Design System v3.2 (see
+    // D:\Projects\Nestie\brand\nestie-tokens.md). Ivory/espresso editorial
+    // system with one orange accent. `primary` is the brand orange; `accent`
+    // is the darker orange used when orange is TEXT on a light ground (contrast
+    // safe). Colour law: orange must stay <=5% of any frame.
+    ink: "#1B1613", // espresso
+    surface: "#F6F3EF", // ivory subtle (Canvas B cards)
+    primary: "#F37021", // brand orange
+    accent: "#C8560D", // orange-as-text on light
+    paper: "#FCFBF9", // ivory ground
+    textPrimary: "#1B1613",
+    textSecondary: "#544C45",
+    positive: "#1F7A44",
+    negative: "#A83232",
+  },
+  font: {
+    // Marcellus (display, single weight, never faux-bold) + Inter (body/UI).
+    // Both self-hosted in loadFonts. NOTE: dusk-photography overlay templates
+    // (Caption, NestieEndCard) still hardcode their own dark scrim + cream text
+    // — that is Canvas A and is correct; this palette is the Canvas B / brand base.
+    display: '"Marcellus", Georgia, serif',
+    body: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+    numeric: '"Inter", "Vazirmatn", "Segoe UI", system-ui, sans-serif',
+  },
+  logo: { src: null, aspect: 3.3 },
+  // Premium home retail, $965 median to $29k. Weighted and still, never springy
+  // — same reasoning as Billionaire Signal: bounce would undercut the price.
+  motion: { entrance: "heavy", emphasis: "snappy", pace: 1.15 },
+  // Light brand. Templates that pick contrast from this must invert.
+  dark: false,
+};
+
 /* ------------------------------------------------------------------ */
 
-export const brands = { cashForChat, billionaireSignal, freeHotelCard } as const;
+export const brands = {
+  cashForChat,
+  billionaireSignal,
+  freeHotelCard,
+  nestie,
+} as const;
 
 export type BrandId = keyof typeof brands;
 
