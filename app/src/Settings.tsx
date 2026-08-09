@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { loadAi, loadSpend, saveAi, subscribeAi } from "./aiSettings";
-import { MODELS } from "./generate";
+import { listModels, preferredModel, rateFor, type ModelInfo } from "./generate";
 import { BUNDLED_FONTS, defaultTheme, type ThemeInput } from "@engine/brand/theme";
 
 const STORAGE_KEY = "mg.customTheme";
@@ -327,6 +327,15 @@ const AiPanel: React.FC = () => {
   const [spend, setSpend] = useState(loadSpend);
   const [shown, setShown] = useState(false);
 
+  /*
+    The model list comes from the key, not from us. Hardcoding ids is what
+    broke this: Google's docs listed a model as current on the same day the API
+    refused it to a new key, and only the key knows what the key can call.
+  */
+  const [models, setModels] = useState<ModelInfo[] | null>(null);
+  const [keyState, setKeyState] = useState<"idle" | "checking" | "ok" | "bad">("idle");
+  const [keyError, setKeyError] = useState<string | null>(null);
+
   useEffect(
     () =>
       subscribeAi(() => {
@@ -340,6 +349,53 @@ const AiPanel: React.FC = () => {
     saveAi(patch);
     setAi(loadAi());
   };
+
+  /*
+    Debounced, because this runs while a key is being typed or pasted and every
+    keystroke would otherwise be a request. Also doubles as the key check —
+    finding out a key is wrong here, next to the field you pasted it into, is
+    far better than finding out on a generation that looked like it was working.
+  */
+  useEffect(() => {
+    const key = ai.apiKey.trim();
+    if (!key) {
+      setModels(null);
+      setKeyState("idle");
+      setKeyError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setKeyState("checking");
+    const timer = setTimeout(() => {
+      listModels(key)
+        .then((list) => {
+          if (cancelled) return;
+          setModels(list);
+          setKeyState("ok");
+          setKeyError(null);
+          // Pick one if the stored choice is empty or no longer offered — which
+          // is exactly the case a retired model id leaves behind.
+          if (!list.some((m) => m.id === ai.model)) {
+            const next = preferredModel(list);
+            if (next) update({ model: next });
+          }
+        })
+        .catch((e: Error) => {
+          if (cancelled) return;
+          setModels(null);
+          setKeyState("bad");
+          setKeyError(e.message);
+        });
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // `ai.model` deliberately absent: choosing a model must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai.apiKey]);
 
   return (
     <section className="ai-panel" id="ai-panel">
@@ -374,20 +430,41 @@ const AiPanel: React.FC = () => {
         <code>aistudio.google.com/apikey</code>.
       </p>
 
-      <label className="field">
-        <span className="field-label">Model</span>
-        <select
-          value={ai.model}
-          onChange={(e) => update({ model: e.target.value as typeof ai.model })}
-        >
-          {(Object.keys(MODELS) as (keyof typeof MODELS)[]).map((m) => (
-            <option key={m} value={m}>
-              {MODELS[m].label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="muted small">{MODELS[ai.model].hint}</p>
+      {keyState === "checking" ? (
+        <p className="muted small">Checking the key…</p>
+      ) : null}
+      {keyState === "bad" ? (
+        <p className="error small">{keyError ?? "That key didn't work."}</p>
+      ) : null}
+
+      {models?.length ? (
+        <>
+          <label className="field">
+            <span className="field-label">Model</span>
+            <select value={ai.model} onChange={(e) => update({ model: e.target.value })}>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id}
+                  {m.rate ? "" : " — cost unknown"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted small">
+            {/*
+              Listed from your key, so it can only ever offer models that key can
+              actually call.
+            */}
+            {models.length} model{models.length === 1 ? "" : "s"} available to this key.{" "}
+            {rateFor(ai.model)
+              ? `About $${(
+                  (6200 / 1e6) * rateFor(ai.model)!.in +
+                  (1200 / 1e6) * rateFor(ai.model)!.out
+                ).toFixed(3)} a template.`
+              : "No published price for this one, so no cost estimate is shown."}
+          </p>
+        </>
+      ) : null}
 
       <label className="field">
         <span className="field-label">

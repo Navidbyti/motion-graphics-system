@@ -47,32 +47,123 @@ const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 export const MAX_ATTEMPTS = 3;
 
 /**
- * Published rates per million tokens, rounded UP.
+ * Which model to use is asked of the API, never hardcoded.
  *
- * An estimate that flatters the cost is worse than no estimate at all when the
- * entire reason it is on screen is to prevent a surprise. Verify against
- * Google's pricing page when it moves.
+ * A shipped list of model ids rots, and it rots asymmetrically: Google's own
+ * docs listed `gemini-2.5-pro` as current on the same day the API refused it
+ * to a newly-created key. Neither a hardcoded constant nor a documentation page
+ * knows what a PARTICULAR key is allowed to call — only the key does.
+ *
+ * So the app asks. It also means the app never has to ship an update because a
+ * model was renamed, which for a desktop tool that updates by installer is the
+ * difference between a five-minute fix and a release.
  */
-export const MODELS = {
-  "gemini-2.5-flash": {
-    label: "Flash — fast and cheap",
-    hint: "Right for almost everything. A template costs well under a cent.",
-    in: 0.3,
-    out: 2.5,
-  },
-  "gemini-2.5-pro": {
-    label: "Pro — slower, better at intricate ones",
-    hint: "Worth it for charts with indicators. Around 2¢ a template.",
-    in: 1.25,
-    out: 10,
-  },
-} as const;
+export type ModelName = string;
 
-export type ModelName = keyof typeof MODELS;
+export type ModelInfo = {
+  id: ModelName;
+  label: string;
+  /** Dollars per million tokens, when we know them. */
+  rate?: { in: number; out: number };
+};
+
+/**
+ * Published rates per million tokens, matched by PREFIX so a dated variant
+ * (`-preview-10-2025`) inherits its family's price. Rounded up: an estimate
+ * that flatters the cost is worse than none when the reason it is on screen is
+ * to prevent a surprise.
+ *
+ * A model that matches nothing here still works — it just shows no cost
+ * estimate, which is honest. Inventing a number for an unknown model is how a
+ * spend counter becomes a lie.
+ */
+const RATES: { prefix: string; in: number; out: number }[] = [
+  { prefix: "gemini-3.5-flash-lite", in: 0.1, out: 0.4 },
+  { prefix: "gemini-3.5-flash", in: 0.3, out: 2.5 },
+  { prefix: "gemini-3.6-flash", in: 0.3, out: 2.5 },
+  { prefix: "gemini-3-flash", in: 0.3, out: 2.5 },
+  { prefix: "gemini-3.1-pro", in: 1.25, out: 10 },
+  { prefix: "gemini-2.5-flash-lite", in: 0.1, out: 0.4 },
+  { prefix: "gemini-2.5-flash", in: 0.3, out: 2.5 },
+  { prefix: "gemini-2.5-pro", in: 1.25, out: 10 },
+];
+
+export const rateFor = (model: ModelName) =>
+  RATES.find((r) => model.startsWith(r.prefix));
 
 export const costOf = (model: ModelName, inTokens: number, outTokens: number) => {
-  const rate = MODELS[model] ?? MODELS["gemini-2.5-flash"];
+  const rate = rateFor(model);
+  if (!rate) return 0;
   return (inTokens / 1e6) * rate.in + (outTokens / 1e6) * rate.out;
+};
+
+/**
+ * What this key can actually call.
+ *
+ * Doubles as the key check. Finding out a key is wrong here, while looking at
+ * the field you just pasted it into, is enormously better than finding out on
+ * a generation that appeared to be working.
+ */
+export const listModels = async (key: string): Promise<ModelInfo[]> => {
+  const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}&pageSize=200`);
+  const text = await response.text();
+
+  if (!response.ok) {
+    let detail = text.slice(0, 240);
+    try {
+      detail = JSON.parse(text)?.error?.message ?? detail;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(detail);
+  }
+
+  const data = JSON.parse(text);
+  const models = (data.models ?? []) as {
+    name: string;
+    displayName?: string;
+    supportedGenerationMethods?: string[];
+  }[];
+
+  return models
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+    .map((m) => ({ id: m.name.replace(/^models\//, ""), displayName: m.displayName }))
+    /*
+      Only text-and-image generators. The list also carries embedding models,
+      TTS, and image generators, none of which can write a template — offering
+      them is offering a way to fail.
+    */
+    .filter(
+      (m) =>
+        m.id.startsWith("gemini-") &&
+        !/embedding|aqa|tts|image-generation|computer-use|vision$/.test(m.id),
+    )
+    .map(({ id, displayName }) => ({
+      id,
+      label: displayName || id,
+      rate: rateFor(id),
+    }))
+    /*
+      Newest first, so the default is a current model rather than whichever
+      happened to sort first. Falling back on the id keeps it stable when two
+      share a version.
+    */
+    .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
+};
+
+/**
+ * The one to use when nobody has chosen.
+ *
+ * Flash over Pro: cheaper, fast enough, and the class of model least likely to
+ * be restricted on a new key — which is exactly what went wrong when this was
+ * a hardcoded constant. Lite is skipped; it is noticeably worse at holding a
+ * format this size in its head.
+ */
+export const preferredModel = (models: ModelInfo[]): ModelName | null => {
+  const flash = models.find(
+    (m) => m.id.includes("flash") && !m.id.includes("lite") && !m.id.includes("preview"),
+  );
+  return flash?.id ?? models[0]?.id ?? null;
 };
 
 export type Usage = {

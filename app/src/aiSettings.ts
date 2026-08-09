@@ -17,7 +17,13 @@ const KEY = "mg.ai.v1";
 
 export type AiSettings = {
   apiKey: string;
-  model: "gemini-2.5-flash" | "gemini-2.5-pro";
+  /**
+   * A model id as the API reports it. Not a union: the set of models a key can
+   * call changes without this app being rebuilt, and a union would turn a
+   * renamed model into a shipped bug. Empty means "not chosen yet" — Settings
+   * fills it from the live list.
+   */
+  model: string;
   /**
    * Dollars per calendar month. Zero means unlimited.
    *
@@ -32,7 +38,7 @@ export type SpendEntry = { month: string; cost: number; calls: number };
 
 const DEFAULTS: AiSettings = {
   apiKey: "",
-  model: "gemini-2.5-flash",
+  model: "",
   monthlyCap: 5,
 };
 
@@ -51,7 +57,7 @@ export const loadAi = (): AiSettings => {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}");
     return {
       apiKey: typeof raw.apiKey === "string" ? raw.apiKey : DEFAULTS.apiKey,
-      model: raw.model === "gemini-2.5-pro" ? "gemini-2.5-pro" : DEFAULTS.model,
+      model: typeof raw.model === "string" ? raw.model : DEFAULTS.model,
       monthlyCap:
         typeof raw.monthlyCap === "number" && raw.monthlyCap >= 0
           ? raw.monthlyCap

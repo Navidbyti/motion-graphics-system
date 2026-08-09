@@ -17,8 +17,8 @@ import { saveTemplate } from "./customTemplates";
 import { specForAI } from "./spec";
 import {
   GenerateError,
-  MODELS,
   costOf,
+  rateFor,
   generateTemplate,
   type Usage,
 } from "./generate";
@@ -249,8 +249,11 @@ export const AddTemplate: React.FC<{
             <div className="row-between">
               <h3>Describe it and let Gemini write it</h3>
               <span className="muted small">
-                {MODELS[ai.model].label.split(" — ")[0]} · ~$
-                {costOf(ai.model, 6200, 1200).toFixed(3)} each
+                {ai.model}
+                {/* No price for a model with no published rate — see rateFor. */}
+                {rateFor(ai.model)
+                  ? ` · ~$${costOf(ai.model, 6200, 1200).toFixed(3)} each`
+                  : ""}
               </span>
             </div>
 
