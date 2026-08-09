@@ -1,0 +1,181 @@
+/**
+ * The instructions the AI reads.
+ *
+ * Assembled from the real schema rather than written out by hand. A spec that
+ * is maintained separately from the code it describes is wrong the first time
+ * either changes, and a wrong spec is worse than none: every template written
+ * from it fails the same way, and the person pasting has no reason to suspect
+ * the instructions rather than themselves.
+ *
+ * So the vocabularies below — colours, sizes, entrances, anchors — are imported
+ * from the format, and the worked example is the same object the app renders as
+ * its default. If a name is removed from the format, it disappears from here
+ * with it. If the example stops being valid, the build fails.
+ *
+ * Written as instructions to a model, in short declarative sentences. Prose it
+ * has to interpret is prose it can interpret wrongly.
+ */
+
+import {
+  ANCHORS,
+  COLOR_TOKENS,
+  ENTRANCES,
+  FONT_ROLES,
+  RADIUS_STEPS,
+  TEMPLATE_FORMAT_VERSION,
+  TYPE_SIZES,
+  WEIGHTS,
+} from "@engine/authoring/format";
+import { exampleTemplateJson } from "@engine/authoring/example";
+
+const list = (values: readonly string[]) => values.map((v) => `\`${v}\``).join(", ");
+
+export const specForAI = () => `
+# Build a motion-graphics template
+
+You are writing a template for a video overlay tool. Reply with **one JSON
+object and nothing else** — no explanation, no notes after it. Code fences are
+fine.
+
+This is data, not code. There is no JavaScript, no expressions, no maths. You
+describe what appears and when; the app decides how it moves.
+
+## The object
+
+\`\`\`
+{
+  "version": ${TEMPLATE_FORMAT_VERSION},
+  "id": "lowercase-hyphenated",      // 3-40 chars, letters digits hyphens
+  "title": "Short Name",             // shown on the library card
+  "description": "One line about what it is for.",
+  "tags": ["up to", "six"],
+  "seconds": 5,                      // how long the graphic runs, 0.5-120
+  "fields": [ ... ],                 // what the user can change
+  "layers": [ ... ]                  // what is drawn, back to front
+}
+\`\`\`
+
+## fields — the form the user gets
+
+Every field has \`key\`, \`label\`, an optional \`help\`, and a \`type\`:
+
+- \`text\` — \`default\`, optional \`maxLength\`, optional \`multiline\`
+- \`number\` — \`default\`, optional \`min\` \`max\` \`step\` \`int\`
+- \`toggle\` — \`default\` true/false
+- \`color\` — optional \`default\`; **omit it so the colour follows the brand**
+- \`choice\` — \`options\`: [{ "value", "label" }], and a \`default\` that is one of them
+- \`image\` — the user supplies the picture; you cannot ship one
+
+\`key\` must be a plain identifier: letters, digits, underscores.
+
+Put every piece of text a user might reasonably want to change in a field. A
+template with the words baked into the layers is one nobody can reuse.
+
+## layers — what is drawn
+
+Drawn in array order. **Later layers sit on top**, so backgrounds come first.
+
+Every layer has \`id\`, \`type\`, and optionally \`box\`, \`motion\`, \`opacity\`.
+
+### box — where it sits
+\`\`\`
+"box": { "x": 50, "y": 40, "w": 80, "anchor": "center", "safe": true }
+\`\`\`
+- \`x\` \`y\` are percentages of the frame. 0,0 is top-left. 50,50 is the middle.
+- \`w\` \`h\` are percentages too. **Leave them out to size to the content** —
+  do that for text unless you need it to wrap at a specific width.
+- \`anchor\` is which part of the layer sits at (x, y): ${list(ANCHORS)}
+- \`safe\` keeps it clear of the platform's own buttons and captions. Leave it
+  true unless the layer is a full-bleed background.
+- \`rotate\` in degrees, -45 to 45. Small angles only.
+
+### motion — when it arrives
+\`\`\`
+"motion": { "in": "fadeUp", "at": 0.4, "out": true }
+\`\`\`
+- \`in\`: ${list(ENTRANCES)}
+- \`at\`: seconds from the start. **Must be less than \`seconds\`.**
+- \`out\`: fade away at the end. Usually true.
+- \`until\`: seconds, if the layer should leave early.
+- \`stagger\`: seconds between words, for \`typewriter\`.
+
+Stagger the \`at\` values. Everything arriving at once looks like a slide, not
+a graphic. 0.15–0.3s between related items is a good default.
+
+### type: "text"
+\`\`\`
+{ "id": "headline", "type": "text", "value": "{{headline}}",
+  "style": { "size": "headline", "font": "display", "weight": "bold",
+             "color": "textPrimary", "align": "center" } }
+\`\`\`
+- \`value\` is literal text with \`{{fieldKey}}\` substituted in. You may mix:
+  \`"{{currency}}{{price}}"\`. **Every \`{{name}}\` must match a field you declared.**
+- \`size\`: ${list(TYPE_SIZES)} — or a number if you must
+- \`font\`: ${list(FONT_ROLES)} — use \`numeric\` for anything with digits that change
+- \`weight\`: ${list(WEIGHTS)}
+- \`align\`, \`lineHeight\` (multiplier), \`letterSpacing\` (em), \`transform\`
+  (\`none\`/\`uppercase\`/\`lowercase\`)
+- Leave \`direction\` alone. It is detected from the text, which is what makes
+  Persian and Arabic render the right way round.
+
+### type: "shape"
+\`\`\`
+{ "id": "card", "type": "shape", "shape": "rect", "fill": "surface",
+  "radius": "lg", "shadow": true, "box": { "w": 86, "h": 40 } }
+\`\`\`
+- \`shape\`: \`rect\`, \`ellipse\`, \`line\`
+- \`fill\`, \`stroke\`, \`strokeWidth\`, \`fillOpacity\`
+- \`radius\`: ${list(RADIUS_STEPS)}
+
+### type: "image"
+\`\`\`
+{ "id": "photo", "type": "image", "src": "{{photo}}", "fit": "cover" }
+\`\`\`
+
+### type: "logo"
+Draws the brand's logo. Nothing to configure.
+
+## Colours
+
+Name a role, never a hex code:
+
+${list(COLOR_TOKENS)}
+
+The app resolves these per brand, which is what lets the same template work for
+every brand the user has. A hardcoded colour looks wrong the moment the brand
+changes. You may write \`"{{someColorField}}"\` to let the user pick.
+
+Only \`accent\` and \`primary\` are identity colours — use them for the one thing
+that matters most in the graphic, not for everything.
+
+## Rules that will get your template rejected
+
+1. Every \`{{reference}}\` must match a declared field key.
+2. No layer may start at or after \`seconds\`.
+3. \`id\` values must be unique — both field keys and layer ids.
+4. A \`choice\` field's \`default\` must be one of its own options.
+5. No colours outside the list above, except a user field or a literal hex.
+
+## Making it good, not just valid
+
+- **One thing should be biggest.** A graphic with three items at \`headline\`
+  size has no subject.
+- **Give text room.** Long copy at \`hero\` size overflows. \`hero\` is for two or
+  three words.
+- **Backgrounds first.** A card behind text is a shape layer earlier in the array.
+- **It must work in three shapes** — 9:16, 1:1 and 16:9. Percentages and anchors
+  do that for you; fixed pixel sizes do not.
+- **Assume the words change.** The user will type something longer than your
+  example.
+
+## A complete example
+
+\`\`\`json
+${exampleTemplateJson}
+\`\`\`
+
+---
+
+Now write a template for what the user describes below. Reply with the JSON
+object only.
+`.trim();

@@ -17,6 +17,7 @@
 
 import { useMemo, useState } from "react";
 import guide from "./docs/adding-templates.md?raw";
+import { specForAI } from "./spec";
 // Relative, not via @engine — that alias points at engine/src and the contract
 // lives one level above it.
 import spec from "../../engine/TEMPLATE_SPEC.md?raw";
@@ -144,19 +145,19 @@ const render = (markdown: string): React.ReactNode[] => {
 };
 
 export const Docs: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   /** Guide first, contract second — the order an author needs them in. */
   const full = useMemo(() => `${guide}\n\n${spec}`, []);
   const body = useMemo(() => render(full), [full]);
 
-  const copy = async () => {
+  const copy = async (what: string, value: string) => {
     try {
-      await navigator.clipboard.writeText(full);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(value);
+      setCopied(what);
+      setTimeout(() => setCopied(null), 2000);
     } catch {
-      setCopied(false);
+      setCopied(null);
     }
   };
 
@@ -166,23 +167,45 @@ export const Docs: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <div>
           <h1>How to add templates</h1>
           <p className="muted">
-            Write a schema and a component; the app builds the editing panel from
-            them.
+            Two ways. Most of the time you want the first one.
           </p>
         </div>
         <div className="btn-group">
-          <button className="active" onClick={copy}>
-            {copied ? "Copied ✓" : "Copy for AI"}
+          <button className="active" onClick={() => copy("easy", specForAI())}>
+            {copied === "easy" ? "Copied ✓" : "Copy the AI instructions"}
           </button>
           <button onClick={onClose}>Done</button>
         </div>
       </div>
 
-      <p className="docs-hint muted small">
-        <strong>Copy for AI</strong> puts this whole page — the guide and the full
-        template contract — on your clipboard. Paste it into any AI chat, then
-        describe the graphic you want.
-      </p>
+      {/*
+        The no-code route leads, because it is the one almost everybody should
+        use and the one that needs no explaining. The code route stays — a
+        declarative format has a ceiling and pretending otherwise would strand
+        anyone who hits it — but it is an escape hatch, not the main road.
+      */}
+      <div className="docs-routes">
+        <section>
+          <h3>Paste one in — no code</h3>
+          <p className="muted">
+            Copy the instructions above into Gemini or ChatGPT, describe the graphic
+            you want (attach a reference image if you have one), and paste its reply
+            into <strong>Library → Add a template</strong>. It becomes a normal
+            template you can edit, rebrand and export like any other. If the reply is
+            wrong, the app tells you exactly what to send back.
+          </p>
+        </section>
+        <section>
+          <h3>Write one in code</h3>
+          <p className="muted">
+            For anything the pasted format cannot express. This needs the repo and a
+            pull request. The full contract is below.
+          </p>
+          <button onClick={() => copy("code", full)}>
+            {copied === "code" ? "Copied ✓" : "Copy the code contract"}
+          </button>
+        </section>
+      </div>
 
       <article className="docs-body">{body}</article>
     </main>

@@ -403,6 +403,46 @@ td input { padding: 4px 6px; }
 .annot-add { display: flex; gap: 8px; margin-top: 4px; }
 .annot-add select { flex: 1; }
 
+/* ---------------- pasted templates ---------------- */
+
+/* The card is a button, so the remove control is positioned over it rather
+   than nested inside — a button inside a button is invalid and Chrome drops
+   the inner one's clicks. */
+.card { position: relative; }
+.card-remove {
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 13px; line-height: 1; cursor: pointer;
+  background: rgba(0,0,0,0.55); color: #fff;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.card:hover .card-remove,
+.card-remove:focus-visible { opacity: 1; }
+.card-remove:hover { background: var(--bad); }
+
+.tag-mine { background: var(--accent); color: var(--bg); }
+
+.add-template { display: grid; gap: 24px; max-width: 760px; }
+.add-step { display: grid; gap: 10px; }
+.add-step h3 { margin: 0; }
+.add-step p { margin: 0; }
+.add-paste {
+  width: 100%; min-height: 220px; resize: vertical;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px; line-height: 1.5;
+  padding: 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.add-problems {
+  display: grid; gap: 10px;
+  padding: 16px; border-radius: 12px;
+  border: 1px solid var(--bad); background: var(--raised);
+}
+.add-problems h3 { margin: 0; }
+.add-problems ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.add-problems strong { color: var(--bad); }
+
 /* ---------------- build mode ---------------- */
 
 .pick { margin-left: 6px; }
@@ -451,3 +491,10 @@ td input { padding: 4px 6px; }
 .annot-toggles { display: flex; gap: 14px; }
 .annot-check { display: flex; align-items: center; gap: 6px; }
 .annot-check input { width: 15px; height: 15px; }
+
+.docs-routes { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; margin-bottom: 24px; }
+.docs-routes section { display: grid; gap: 10px; align-content: start; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); }
+.docs-routes h3 { margin: 0; }
+.docs-routes p { margin: 0; }
+.docs-routes button { justify-self: start; }
+@media (max-width: 880px) { .docs-routes { grid-template-columns: 1fr; } }

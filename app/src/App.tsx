@@ -9,7 +9,15 @@ import { Player } from "@remotion/player";
 import { useEffect, useMemo, useState } from "react";
 import { formats } from "@engine/brand/tokens";
 import { FPS } from "@engine/Root";
-import { compositionId, registry, type FormatName } from "@engine/registry";
+import {
+  compositionId,
+  registry,
+  type AnyTemplateEntry,
+  type FormatName,
+} from "@engine/registry";
+import { customToEntry, isCustomEntry, customRenderProps } from "@engine/authoring/toEntry";
+import { AddTemplate } from "./AddTemplate";
+import { loadTemplates, removeTemplate, subscribeTemplates } from "./customTemplates";
 import { SchemaForm } from "./SchemaForm";
 import { BuildStage } from "./BuildStage";
 import { clearEditing, setMode, useEditing } from "./editing";
@@ -280,6 +288,7 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [subsOpen, setSubsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
 
   /**
@@ -325,7 +334,19 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const template = registry.find((t) => t.id === selectedId);
+  /*
+    Pasted templates are converted into ordinary Library entries and appended.
+    Everything past this line — the grid, the edit screen, the export — reads
+    one list and cannot tell which entries were shipped and which were pasted,
+    which is the entire integration.
+  */
+  const custom = useCustomTemplates();
+  const entries = useMemo(
+    () => [...registry, ...custom.map(customToEntry)],
+    [custom],
+  );
+
+  const template = entries.find((t) => t.id === selectedId);
 
   return (
     <div className="app">
@@ -373,6 +394,16 @@ export const App: React.FC = () => {
         <Docs onClose={() => setDocsOpen(false)} />
       ) : settingsOpen ? (
         <Settings onClose={() => setSettingsOpen(false)} />
+      ) : addOpen ? (
+        <AddTemplate
+          onBack={() => setAddOpen(false)}
+          onAdded={(file) => {
+            // Straight into the new template. Landing back on the Library and
+            // hunting for it is a worse ending to a flow that just worked.
+            setAddOpen(false);
+            setSelectedId(file.id);
+          }}
+        />
       ) : template ? (
         <EditScreen
           key={template.id}
@@ -381,7 +412,12 @@ export const App: React.FC = () => {
           onBack={() => setSelectedId(null)}
         />
       ) : (
-        <Library onOpen={setSelectedId} />
+        <Library
+          entries={entries}
+          onOpen={setSelectedId}
+          onAdd={() => setAddOpen(true)}
+          onRemove={removeTemplate}
+        />
       )}
     </div>
   );
@@ -389,15 +425,30 @@ export const App: React.FC = () => {
 
 /* ------------------------------------------------------------------ */
 
-const Library: React.FC<{ onOpen: (id: string) => void }> = ({ onOpen }) => (
+/** Pasted templates, kept in step with storage across every screen. */
+const useCustomTemplates = () => {
+  const [list, setList] = useState(loadTemplates);
+  useEffect(() => subscribeTemplates(() => setList(loadTemplates())), []);
+  return list;
+};
+
+const Library: React.FC<{
+  entries: AnyTemplateEntry[];
+  onOpen: (id: string) => void;
+  onAdd: () => void;
+  onRemove: (id: string) => void;
+}> = ({ entries, onOpen, onAdd, onRemove }) => (
   <main className="library">
-    <h1>Library</h1>
+    <div className="row-between">
+      <h1>Library</h1>
+      <button onClick={onAdd}>+ Add a template</button>
+    </div>
     <p className="muted">
       Pick a template, fill it in, export to your timeline.
     </p>
 
     <div className="grid">
-      {registry.map((t) => (
+      {entries.map((t) => (
         <button key={t.id} className="card" onClick={() => onOpen(t.id)}>
           <div className="card-preview">
             <Player
@@ -417,6 +468,7 @@ const Library: React.FC<{ onOpen: (id: string) => void }> = ({ onOpen }) => (
             <strong>{t.title}</strong>
             <span className="muted">{t.blurb}</span>
             <div className="tags">
+              {isCustomEntry(t) ? <span className="tag tag-mine">yours</span> : null}
               {t.tags.map((tag) => (
                 <span key={tag} className="tag">
                   {tag}
@@ -424,6 +476,34 @@ const Library: React.FC<{ onOpen: (id: string) => void }> = ({ onOpen }) => (
               ))}
             </div>
           </div>
+
+          {/*
+            Removal lives on the card rather than inside the template, because
+            a template you cannot delete from the place you see it is one you
+            end up living with. Only pasted ones — the shipped library is not
+            the editor's to prune.
+          */}
+          {isCustomEntry(t) ? (
+            <span
+              className="card-remove"
+              role="button"
+              tabIndex={0}
+              title="Remove from my Library"
+              onClick={(e) => {
+                // The card itself opens the template; without this, removing
+                // one would open it on the way out.
+                e.stopPropagation();
+                if (confirm(`Remove "${t.title}" from your Library?`)) onRemove(t.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.stopPropagation();
+                if (confirm(`Remove "${t.title}" from your Library?`)) onRemove(t.id);
+              }}
+            >
+              ✕
+            </span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -580,8 +660,18 @@ const EditScreen: React.FC<{
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        compositionId: compositionId(template.id, format),
-        inputProps: renderProps,
+        /*
+          A pasted template renders through the generic Custom composition,
+          carrying its own definition — no composition named after it exists in
+          a bundle that was built before it was written. Built-ins keep their
+          own composition, which is what makes their props stay small.
+        */
+        compositionId: isCustomEntry(template)
+          ? compositionId("Custom", format)
+          : compositionId(template.id, format),
+        inputProps: isCustomEntry(template)
+          ? customRenderProps(template.file, renderProps)
+          : renderProps,
         preset,
         name: `${template.id}-${format}`,
       }),
