@@ -26,7 +26,11 @@ import {
   TYPE_SIZES,
   WEIGHTS,
 } from "@engine/authoring/format";
-import { exampleChartJson, exampleTemplateJson } from "@engine/authoring/example";
+import {
+  exampleChartJson,
+  exampleMacdJson,
+  exampleTemplateJson,
+} from "@engine/authoring/example";
 
 const list = (values: readonly string[]) => values.map((v) => `\`${v}\``).join(", ");
 
@@ -249,6 +253,21 @@ that matters most in the graphic, not for everything.
 ${exampleTemplateJson}
 \`\`\`
 
+## Which feature does what they asked for?
+
+Find the request in the left column before you start writing. Most bad
+templates come from reaching for text layers when a real feature exists.
+
+| They asked for | Use |
+| --- | --- |
+| A moving average, EMA, SMA | \`overlays\` on a chart layer |
+| MACD, an EMA crossover, "the gap between the lines" | two \`overlays\` + \`shadeBetween\` |
+| Support, resistance, a zone, a trendline | an \`annotations\` field on the chart |
+| A price chart at all | a \`bars\` field + a \`chart\` layer |
+| A line/trend of plain values | a \`series\` field + \`"kind": "line"\` |
+| A number that counts up | a \`text\` layer — the user types the final value |
+| Anything computed that is not in this table | say it is not supported. Do not fake it. |
+
 ## A chart example
 
 Three pieces have to line up: a \`bars\` field, a \`chart\` layer pointing at it,
@@ -256,6 +275,24 @@ and an \`annotations\` field if the user should be able to mark it up.
 
 \`\`\`json
 ${exampleChartJson}
+\`\`\`
+
+## An indicator example — MACD
+
+This is the pattern for **any** chart whose subject is a computed line rather
+than the price. Note four things and reuse all of them:
+
+1. \`overlays\` compute the averages. You never write the maths.
+2. Each overlay has its own \`at\`, so the fast line finishes before the slow one
+   starts. That sequencing is the explanation.
+3. \`shadeBetween\` indexes into \`overlays\` by position — \`0\` is the first.
+4. \`candleStyle: "grayscale"\` with \`dimPriceTo\` pushes the price back, and each
+   legend arrives with the line it names.
+
+Swap the periods, colours and copy for what the user asked for. Keep the shape.
+
+\`\`\`json
+${exampleMacdJson}
 \`\`\`
 
 ---
