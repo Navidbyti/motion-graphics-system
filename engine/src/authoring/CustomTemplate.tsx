@@ -33,6 +33,7 @@ import { Plot } from "../charting/Plot";
 import { AnnotationLayer } from "../charting/AnnotationLayer";
 import { annotationPrices, type Annotation } from "../charting/annotations";
 import { priceScale, type Bar } from "../charting/geometry";
+import { indicator } from "../charting/indicators";
 import type { TemplateFile, TemplateLayer } from "./format";
 
 export type CustomTemplateProps = {
@@ -209,7 +210,18 @@ const Layer: React.FC<{
     position: "absolute",
     left: inset.x + (layer.box.x / 100) * availableW,
     top: inset.top + (layer.box.y / 100) * availableH,
-    width: layer.box.w === undefined ? undefined : (layer.box.w / 100) * availableW,
+    /*
+      `max-content` when no width is given, not `auto`.
+
+      An absolutely positioned box with `auto` width shrink-to-fits, but its
+      limit is the distance from its own left edge to the container's right
+      edge. A layer anchored `topRight` at x:100 therefore gets almost no room
+      and every word wraps onto its own line — which is what turned two legends
+      into two narrow towers sitting on top of each other. `max-content` lets
+      the content decide, and maxWidth keeps a long line inside the frame.
+    */
+    width: layer.box.w === undefined ? "max-content" : (layer.box.w / 100) * availableW,
+    maxWidth: layer.box.w === undefined ? availableW : undefined,
     height: layer.box.h === undefined ? undefined : (layer.box.h / 100) * availableH,
     translate: `${shiftX}% calc(${shiftY}% + ${entranceOffset}px)`,
     rotate: layer.box.rotate ? `${layer.box.rotate}deg` : undefined,
@@ -415,6 +427,53 @@ const Layer: React.FC<{
       easing: EASE.out,
     });
 
+    /*
+      Indicators are computed here, not declared. A template says "a 12-candle
+      EMA in blue"; the arithmetic is the engine's, which is the whole bargain
+      that lets the format have no expressions in it.
+    */
+    const overlays = layer.overlays.map((o) => {
+      const start = sec(o.at, fps);
+      const span = Math.max(sec(o.drawSeconds, fps), 1);
+      return {
+        values: indicator(o.kind, bars, o.period),
+        color: resolveColor(o.color, palette, values) ?? palette.primary,
+        width: px(o.width),
+        progress: interpolate(frame, [start, start + span], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: EASE.out,
+        }),
+      };
+    });
+
+    const shading =
+      layer.shadeBetween && overlays[layer.shadeBetween.a] && overlays[layer.shadeBetween.b]
+        ? {
+            a: overlays[layer.shadeBetween.a].values,
+            b: overlays[layer.shadeBetween.b].values,
+            above: resolveColor(layer.shadeBetween.above, palette, values) ?? palette.primary,
+            below: resolveColor(layer.shadeBetween.below, palette, values) ?? palette.accent,
+            opacity: layer.shadeBetween.opacity,
+            progress: interpolate(
+              frame,
+              [sec(layer.shadeBetween.at, fps), sec(layer.shadeBetween.at + 1.2, fps)],
+              [0, 1],
+              { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE.out },
+            ),
+          }
+        : undefined;
+
+    /*
+      The price fades back as the first overlay draws, not on a timer of its
+      own. Tying it to the thing that replaces it as the subject is what makes
+      the handover read as one movement rather than two coincidences.
+    */
+    const priceOpacity =
+      layer.dimPriceTo >= 1 || !overlays.length
+        ? 1
+        : 1 - (1 - layer.dimPriceTo) * overlays[0].progress;
+
     return (
       <div style={frameStyle}>
         <Plot
@@ -424,6 +483,10 @@ const Layer: React.FC<{
           palette={palette}
           progress={drawn}
           stroke={px(1.4)}
+          grayscale={layer.candleStyle === "grayscale"}
+          priceOpacity={priceOpacity}
+          overlays={overlays}
+          shading={shading}
         />
         {/*
           A sibling, positioned over the same box — see the note in Plot. Also

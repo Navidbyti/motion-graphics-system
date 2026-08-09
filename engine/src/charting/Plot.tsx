@@ -63,6 +63,57 @@ const candlePaths = (bars: Bar[], scale: PriceScale) => {
   return out;
 };
 
+/** A computed line drawn over the price, already resolved to values and colour. */
+export type PlotOverlay = {
+  /** One value per bar. */
+  values: number[];
+  color: string;
+  width: number;
+  /** 0–1, its own draw progress. */
+  progress: number;
+};
+
+export type PlotShading = {
+  a: number[];
+  b: number[];
+  above: string;
+  below: string;
+  opacity: number;
+  /** 0–1, how far across the shading has filled. */
+  progress: number;
+};
+
+/**
+ * The band between two lines, split wherever they cross.
+ *
+ * Built as one path per side rather than a quad per bar pair: at 200 bars that
+ * is 400 elements the renderer composites every frame, and they seam visibly
+ * against each other at low opacity — the overlap of adjacent translucent
+ * shapes reads as vertical banding.
+ */
+const shadePaths = (s: PlotShading, scale: PriceScale, upTo: number) => {
+  let above = "";
+  let below = "";
+
+  const n = Math.min(s.a.length, s.b.length, upTo);
+  for (let i = 0; i < n - 1; i++) {
+    const x0 = indexToSvgX(i, scale);
+    const x1 = indexToSvgX(i + 1, scale);
+    const quad =
+      `M ${x0} ${priceToSvgY(s.a[i], scale)} ` +
+      `L ${x1} ${priceToSvgY(s.a[i + 1], scale)} ` +
+      `L ${x1} ${priceToSvgY(s.b[i + 1], scale)} ` +
+      `L ${x0} ${priceToSvgY(s.b[i], scale)} Z `;
+
+    // Which line is on top decides the colour, per bar. That is the whole
+    // reading of the graphic: the band flips when the averages cross.
+    if (s.a[i] >= s.b[i]) above += quad;
+    else below += quad;
+  }
+
+  return { above, below };
+};
+
 export const Plot: React.FC<{
   kind: PlotKind;
   bars: Bar[];
@@ -70,6 +121,12 @@ export const Plot: React.FC<{
   palette: BrandPalette;
   /** 0–1. The chart wipes in from the left as this advances. */
   progress: number;
+  /** Grey price, for charts whose subject is something drawn on top. */
+  grayscale?: boolean;
+  /** 0–1 multiplier on the price, so overlays can become the subject. */
+  priceOpacity?: number;
+  overlays?: PlotOverlay[];
+  shading?: PlotShading;
   /** Stroke width in composition pixels — already through `px()`. */
   stroke: number;
   /*
@@ -79,8 +136,27 @@ export const Plot: React.FC<{
     have its glyphs stretched with it. HTML inside an <svg> renders as nothing
     at all, so nesting silently loses every label — shapes appear, names do not.
   */
-}> = ({ kind, bars, scale, palette, progress, stroke }) => {
+}> = ({
+  kind,
+  bars,
+  scale,
+  palette,
+  progress,
+  stroke,
+  grayscale = false,
+  priceOpacity = 1,
+  overlays = [],
+  shading,
+}) => {
   const wipe = Math.max(0, Math.min(1, progress));
+
+  /*
+    Grey, not "the brand colours desaturated". Two greys far enough apart to
+    still read as up and down at phone size, and dark enough that a coloured
+    line over them is unambiguously the subject.
+  */
+  const up = grayscale ? "#586069" : palette.positive;
+  const down = grayscale ? "#414A54" : palette.negative;
 
   const line =
     kind === "line" && bars.length
@@ -110,25 +186,25 @@ export const Plot: React.FC<{
         </clipPath>
       </defs>
 
-      <g clipPath="url(#plot-wipe)">
+      <g clipPath="url(#plot-wipe)" opacity={priceOpacity}>
         {paths ? (
           <>
             <path
               d={paths.upWick}
-              stroke={palette.positive}
+              stroke={up}
               strokeWidth={stroke}
               vectorEffect="non-scaling-stroke"
               fill="none"
             />
             <path
               d={paths.downWick}
-              stroke={palette.negative}
+              stroke={down}
               strokeWidth={stroke}
               vectorEffect="non-scaling-stroke"
               fill="none"
             />
-            <path d={paths.upBody} fill={palette.positive} />
-            <path d={paths.downBody} fill={palette.negative} />
+            <path d={paths.upBody} fill={up} />
+            <path d={paths.downBody} fill={down} />
           </>
         ) : (
           <polyline
@@ -142,6 +218,59 @@ export const Plot: React.FC<{
           />
         )}
       </g>
+
+      {/*
+        Shading first, then the lines over it. The band is the subject in a
+        MACD explainer but it is still a fill, and a fill on top of a 3px line
+        washes the line out at any opacity worth seeing the band at.
+      */}
+      {shading && shading.progress > 0
+        ? (() => {
+            const upTo = Math.ceil(
+              Math.max(0, Math.min(1, shading.progress)) *
+                Math.min(shading.a.length, shading.b.length),
+            );
+            const { above, below } = shadePaths(shading, scale, upTo);
+            return (
+              <>
+                <path d={above} fill={shading.above} fillOpacity={shading.opacity} />
+                <path d={below} fill={shading.below} fillOpacity={shading.opacity} />
+              </>
+            );
+          })()
+        : null}
+
+      {overlays.map((o, n) => {
+        if (o.progress <= 0 || o.values.length < 2) return null;
+        /*
+          Each overlay carries its own clip, so a template can bring one line in
+          after another has finished. A shared wipe would force them to arrive
+          together, which is the opposite of what a teaching chart needs — the
+          whole point is showing the fast line react before the slow one.
+        */
+        const id = `plot-overlay-${n}`;
+        return (
+          <g key={n}>
+            <defs>
+              <clipPath id={id} clipPathUnits="objectBoundingBox">
+                <rect x="0" y="0" width={Math.max(0, Math.min(1, o.progress))} height="1" />
+              </clipPath>
+            </defs>
+            <polyline
+              clipPath={`url(#${id})`}
+              points={o.values
+                .map((v, i) => `${indexToSvgX(i, scale)},${priceToSvgY(v, scale)}`)
+                .join(" ")}
+              fill="none"
+              stroke={o.color}
+              strokeWidth={o.width}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 };

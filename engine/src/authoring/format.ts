@@ -403,6 +403,64 @@ export const layerSchema = z.discriminatedUnion("type", [
     decimals: z.number().int().min(0).max(8).default(2),
     /** Seconds the price takes to draw in. */
     drawSeconds: z.number().min(0.1).max(20).default(1.6),
+
+    /**
+     * Grey candles let something drawn on top be the subject.
+     *
+     * A teaching chart about a moving average is not about the candles, and
+     * red/green price behind a blue line reads as three competing things. The
+     * brand's own up/down colours stay the default, because most charts ARE
+     * about the price.
+     */
+    candleStyle: z.enum(["brand", "grayscale"]).default("brand"),
+
+    /**
+     * Lines computed FROM the data — a template cannot calculate one itself.
+     * Referenced by position in this array from `shadeBetween`.
+     */
+    overlays: z
+      .array(
+        z.object({
+          kind: z.enum(["ema", "sma"]).default("ema"),
+          /** Candles averaged. 12 and 26 are the MACD pair. */
+          period: z.number().int().min(2).max(400),
+          color: colorValue.default("primary"),
+          label: z.string().max(40).optional(),
+          /** Seconds after the layer starts before this line begins drawing. */
+          at: z.number().min(0).max(120).default(0),
+          drawSeconds: z.number().min(0.1).max(20).default(1.4),
+          width: z.number().min(0.5).max(12).default(3),
+        }),
+      )
+      .max(4)
+      .default([]),
+
+    /**
+     * Fill the space between two overlays, coloured by which is on top.
+     *
+     * The whole point of a MACD explainer: the gap IS the indicator, and
+     * showing it as an area rather than a second panel is what makes that
+     * legible at phone size.
+     */
+    shadeBetween: z
+      .object({
+        /** Indexes into `overlays`. */
+        a: z.number().int().min(0).max(3),
+        b: z.number().int().min(0).max(3),
+        /** When overlay `a` is above `b`. */
+        above: colorValue.default("primary"),
+        below: colorValue.default("accent"),
+        opacity: z.number().min(0).max(1).default(0.34),
+        /** Seconds after the layer starts before the shading appears. */
+        at: z.number().min(0).max(120).default(0),
+      })
+      .optional(),
+
+    /**
+     * Fade the candles back once the overlays are drawing, so the lines read as
+     * the subject. 1 leaves them alone; 0.3 pushes them well behind.
+     */
+    dimPriceTo: z.number().min(0).max(1).default(1),
   }),
 ]);
 
@@ -505,6 +563,27 @@ export const templateFileSchema = z
           path: ["layers", i, "box"],
           message: "a chart needs both `w` and `h` — it cannot size to its contents",
         });
+      }
+
+      // Shading between overlays that do not exist draws nothing, silently.
+      if (layer.type === "chart" && layer.shadeBetween) {
+        for (const end of ["a", "b"] as const) {
+          const at = layer.shadeBetween[end];
+          if (at >= layer.overlays.length) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["layers", i, "shadeBetween", end],
+              message: `there is no overlay #${at} — this chart has ${layer.overlays.length}`,
+            });
+          }
+        }
+        if (layer.shadeBetween.a === layer.shadeBetween.b) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["layers", i, "shadeBetween"],
+            message: "`a` and `b` must be different overlays — there is no gap between a line and itself",
+          });
+        }
       }
 
       const refs =

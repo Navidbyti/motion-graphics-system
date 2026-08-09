@@ -40,6 +40,28 @@ fine.
 This is data, not code. There is no JavaScript, no expressions, no maths. You
 describe what appears and when; the app decides how it moves.
 
+## What you cannot do — read this before you plan anything
+
+**You cannot calculate.** There is no way to write an average, a sum, a
+percentage, a difference, or anything derived from the data. If a graphic needs
+a computed value, it can only come from a feature listed in this document.
+
+This matters most for charts. A moving average, a MACD, an RSI — you cannot
+build these out of text and shapes. **Use the \`overlays\` feature on a chart
+layer** (documented below); it computes them properly.
+
+**You cannot animate one layer in response to another.** Timings are absolute
+seconds, not "after the blue line finishes". Stagger the \`at\` values to get
+that reading.
+
+**You cannot invent a data source.** Data comes from a field the user fills,
+fetches or pastes.
+
+If what the user asked for genuinely needs something not in this document, say
+so in one sentence instead of producing JSON — do not approximate it with text
+layers. A stack of labels where a graphic was asked for is worse than an honest
+"this format cannot do that yet."
+
 ## The object
 
 \`\`\`
@@ -161,6 +183,32 @@ Draws the brand's logo. Nothing to configure.
 - **A chart must have both \`w\` and \`h\`** — it cannot size to its contents.
 - Use \`"in": "none"\` — the chart has its own draw-in, and an entrance on top
   of it fights the reveal.
+
+#### Overlays — moving averages, computed for you
+
+This is how you get a MACD, an EMA crossover, or any average. **You never
+calculate the values**; you name the indicator and the app computes it.
+
+\`\`\`
+"candleStyle": "grayscale",
+"dimPriceTo": 0.35,
+"overlays": [
+  { "kind": "ema", "period": 12, "color": "#388BFD", "at": 0.5, "drawSeconds": 1.6 },
+  { "kind": "ema", "period": 26, "color": "#DB6D28", "at": 2.2, "drawSeconds": 1.6 }
+],
+"shadeBetween": { "a": 0, "b": 1, "above": "#388BFD", "below": "#DB6D28",
+                  "opacity": 0.34, "at": 4.0 }
+\`\`\`
+
+- \`kind\`: \`ema\` or \`sma\`. \`period\` is candles — 12 and 26 are the MACD pair.
+- \`at\` and \`drawSeconds\` are per overlay, so one line can finish before the
+  next starts. That sequencing is the explainer.
+- \`shadeBetween\` fills the gap between two overlays **by index into the
+  \`overlays\` array**, and flips colour wherever they cross. The band is the
+  indicator — this is what a MACD histogram is showing, drawn where it happened.
+- \`candleStyle: "grayscale"\` and \`dimPriceTo\` push the price back so the lines
+  are the subject. Use both on any chart that is about an indicator rather than
+  about the price.
 
 ## Colours
 
