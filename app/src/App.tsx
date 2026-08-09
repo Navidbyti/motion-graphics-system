@@ -291,6 +291,8 @@ export const App: React.FC = () => {
   const [docsOpen, setDocsOpen] = useState(false);
   const [subsOpen, setSubsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  /** Set when Settings is opened specifically to add an API key. */
+  const [settingsFocus, setSettingsFocus] = useState<"ai" | undefined>(undefined);
   const [health, setHealth] = useState<Health | null>(null);
 
   /**
@@ -384,7 +386,9 @@ export const App: React.FC = () => {
             setSubsOpen(false);
           }}
         >
-          {settingsOpen ? "Close" : "Theme"}
+          {/* "Theme" alone gave no hint the API key lived behind it, and the
+              one person looking for it went to Add a template instead. */}
+          {settingsOpen ? "Close" : "Theme & AI"}
         </button>
         <ActivityBar />
         <SyncButton />
@@ -395,9 +399,14 @@ export const App: React.FC = () => {
       ) : docsOpen ? (
         <Docs onClose={() => setDocsOpen(false)} />
       ) : settingsOpen ? (
-        <Settings onClose={() => setSettingsOpen(false)} />
+        <Settings onClose={() => setSettingsOpen(false)} focus={settingsFocus} />
       ) : addOpen ? (
         <AddTemplate
+          onOpenSettings={() => {
+            setAddOpen(false);
+            setSettingsFocus("ai");
+            setSettingsOpen(true);
+          }}
           onBack={() => setAddOpen(false)}
           onAdded={(file) => {
             // Straight into the new template. Landing back on the Library and

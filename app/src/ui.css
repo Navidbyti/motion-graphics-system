@@ -535,3 +535,13 @@ td input { padding: 4px 6px; }
   border: 1px solid var(--accent); background: var(--raised);
 }
 .revise p { margin: 0; }
+
+/* The offer shown when no key is set. Deliberately quiet — it is an option,
+   not a requirement, and the manual route below it is fully sufficient. */
+.add-offer {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 14px 16px; border-radius: 12px;
+  border: 1px dashed var(--line); background: var(--raised);
+}
+.add-offer p { margin: 4px 0 0; max-width: 52ch; }
+.add-offer button { white-space: nowrap; }

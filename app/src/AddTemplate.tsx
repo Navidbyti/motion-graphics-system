@@ -60,7 +60,9 @@ const describePath = (path: (string | number)[]): string => {
 export const AddTemplate: React.FC<{
   onBack: () => void;
   onAdded: (file: TemplateFile) => void;
-}> = ({ onBack, onAdded }) => {
+  /** Opens Theme, where the key lives. */
+  onOpenSettings: () => void;
+}> = ({ onBack, onAdded, onOpenSettings }) => {
   const [text, setText] = useState("");
   const [problems, setProblems] = useState<Problem[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -217,6 +219,31 @@ export const AddTemplate: React.FC<{
           feature that cannot run is an advert; leading with the manual route
           when the automatic one is ready is a step nobody needs.
         */}
+        {/*
+          Without a key, the offer still has to be visible HERE.
+
+          The panel below only renders once a key exists, which meant this
+          screen gave no sign the feature existed at all — someone looking for
+          it on the obvious page found nothing, and the key field lives on a
+          different screen entirely. Hiding an unusable control is right;
+          hiding the fact that it can be made usable is not.
+        */}
+        {!ai.apiKey ? (
+          <section className="add-offer">
+            <div>
+              <strong>Want it written for you?</strong>
+              <p className="muted small">
+                With a Gemini API key, this page can write a template from a
+                description and fix its own mistakes. Free tier covers it — a
+                template costs well under a cent.
+              </p>
+            </div>
+            <button className="active" onClick={onOpenSettings}>
+              Add a key in Theme
+            </button>
+          </section>
+        ) : null}
+
         {ai.apiKey ? (
           <section className="add-step add-auto">
             <div className="row-between">

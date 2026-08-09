@@ -146,7 +146,17 @@ const FontUpload: React.FC<{
   );
 };
 
-export const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const Settings: React.FC<{
+  onClose: () => void;
+  /**
+   * Jump straight to the AI section.
+   *
+   * It sits below nine colour fields and a font upload, so arriving from "Add
+   * a key in Theme" and landing at the top means hunting for the thing you
+   * just asked for.
+   */
+  focus?: "ai";
+}> = ({ onClose, focus }) => {
   const [theme, setTheme] = useState<ThemeInput>(loadCustomTheme);
   const [saved, setSaved] = useState(false);
 
@@ -157,6 +167,16 @@ export const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const timer = setTimeout(() => setSaved(false), 1200);
     return () => clearTimeout(timer);
   }, [theme]);
+
+  useEffect(() => {
+    if (focus !== "ai") return;
+    // After paint, so the panel exists to scroll to.
+    const timer = setTimeout(
+      () => document.getElementById("ai-panel")?.scrollIntoView({ behavior: "smooth" }),
+      60,
+    );
+    return () => clearTimeout(timer);
+  }, [focus]);
 
   const set = <K extends keyof ThemeInput>(key: K, value: ThemeInput[K]) =>
     setTheme((t) => ({ ...t, [key]: value }));
@@ -322,7 +342,7 @@ const AiPanel: React.FC = () => {
   };
 
   return (
-    <section className="ai-panel">
+    <section className="ai-panel" id="ai-panel">
       <h2>Write templates with AI</h2>
       <p className="muted">
         Optional. With a key, <strong>Add a template</strong> can write one from a
