@@ -300,3 +300,120 @@ export const generateTemplate = async ({
     { problems, draft, usage: usage(MAX_ATTEMPTS) },
   );
 };
+
+/* ------------------------------------------------------------------ *
+ * Revision
+ * ------------------------------------------------------------------ */
+
+/**
+ * Fix a template that is valid but wrong, from a rendered frame and a
+ * complaint.
+ *
+ * The generation loop closes the gap between "invalid" and "valid". This closes
+ * the one between "valid" and "good", and it is a different problem: nothing in
+ * the schema knows that a caption is sitting on top of a candle.
+ *
+ * The complaint comes from the PERSON, deliberately. Asking a model to look at
+ * its own output and say whether it is good produces either "yes, this
+ * effectively communicates the concept" or an invented flaw that breaks
+ * something which worked — self-assessment is the weakest thing a model does.
+ * The editor knows what they wanted and can say it in six words, and an exact
+ * complaint is precisely the shape the repair loop already succeeds on.
+ *
+ * Cheaper than generating, too: no instruction sheet. The model is editing a
+ * template it can see rather than learning a format, so it gets the frame, the
+ * current JSON, and the sentence — about 2,800 tokens against 6,200.
+ */
+export const reviseTemplate = async ({
+  key,
+  model,
+  template,
+  complaint,
+  frame,
+  signal,
+}: {
+  key: string;
+  model: ModelName;
+  /** The template as it stands, including whatever the editor has changed. */
+  template: TemplateFile;
+  /** What is wrong, in the editor's words. May be empty — then it just looks. */
+  complaint: string;
+  /** A still of the moment being complained about, as a data URL. */
+  frame: string;
+  signal?: AbortSignal;
+}): Promise<{ template: TemplateFile; usage: Usage }> => {
+  if (!key.trim()) throw new GenerateError("No Gemini API key set — add one in Theme.");
+
+  const [meta, b64] = frame.split(",");
+  const mimeType = meta.slice(5).split(";")[0] || "image/png";
+  if (!b64) throw new GenerateError("Couldn't render the frame to look at.");
+
+  const parts: Part[] = [
+    {
+      text: [
+        "The image is a frame rendered from the template below. Something is",
+        "wrong with how it looks.",
+        "",
+        complaint.trim()
+          ? `What the person who made it says is wrong:\n${complaint.trim()}`
+          : "They have not said what is wrong. Find the most obvious visual problem.",
+        "",
+        "Fix it by changing this template. Rules:",
+        "- Return the complete JSON object, same shape, nothing else.",
+        "- Change as little as possible. Do not restyle things that are fine.",
+        "- Do not change the `fields` array or any `default` value — those are",
+        "  the editor's content, not yours.",
+        "- Layout problems are almost always `box` (x, y, w, anchor) or overlapping",
+        "  `motion.at` timings. Prefer moving something to inventing a layer.",
+        "",
+        "The template:",
+        JSON.stringify(template),
+      ].join("\n"),
+    },
+    { inlineData: { mimeType, data: b64 } },
+  ];
+
+  const result = await callGemini(key, model, parts, signal);
+  const usage: Usage = {
+    model,
+    attempts: 1,
+    inTokens: result.inTokens,
+    outTokens: result.outTokens,
+    cost: costOf(model, result.inTokens, result.outTokens),
+  };
+
+  if (result.finish === "SAFETY") {
+    throw new GenerateError("Gemini refused to answer. Rephrase what's wrong.", { usage });
+  }
+
+  const body = result.text.trim();
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  const json = start === -1 ? body : body.slice(start, end + 1);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (e) {
+    throw new GenerateError(`The reply wasn't readable — ${(e as Error).message}`, {
+      draft: json,
+      usage,
+    });
+  }
+
+  const verdict = validate(parsed);
+  if (!verdict.ok) {
+    /*
+      No repair loop here. A revision that comes back invalid means the model
+      misunderstood the request rather than fumbled a field, and spending
+      another call to re-fix a fix is how a cheap feature becomes an expensive
+      one. The editor tries again with clearer words, which is also faster.
+    */
+    throw new GenerateError(
+      "The fix came back invalid. Try describing the problem differently.",
+      { problems: verdict.problems, draft: json, usage },
+    );
+  }
+
+  return { template: verdict.template, usage };
+};

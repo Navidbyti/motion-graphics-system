@@ -139,10 +139,22 @@ app.post("/api/market/series", async (req, res) => {
 });
 
 app.post("/api/thumbnail", async (req, res) => {
-  const { compositionId, inputProps = {} } = req.body ?? {};
+  /*
+    `frame` is optional and matters for one caller: the AI revision flow renders
+    the exact frame the editor was looking at when they said it was wrong. A
+    complaint is usually about a moment — "the label flashes past" — and
+    critiquing a different frame than the one being objected to is worse than
+    not critiquing at all.
+  */
+  const { compositionId, inputProps = {}, frame } = req.body ?? {};
   try {
     const output = path.join(THUMB_FOLDER, `${safeName(compositionId)}.png`);
-    await renderThumbnail({ compositionId, inputProps, outputPath: output });
+    await renderThumbnail({
+      compositionId,
+      inputProps,
+      outputPath: output,
+      frame: Number.isFinite(frame) ? Math.max(0, Math.round(frame)) : undefined,
+    });
     res.sendFile(output);
   } catch (err) {
     res.status(500).json({ error: String(err?.message ?? err) });

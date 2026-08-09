@@ -5,8 +5,8 @@
  * thing to explain, and the whole premise is that he never opens a terminal.
  */
 
-import { Player } from "@remotion/player";
-import { useEffect, useMemo, useState } from "react";
+import { Player, type PlayerRef } from "@remotion/player";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formats } from "@engine/brand/tokens";
 import { FPS } from "@engine/Root";
 import {
@@ -19,6 +19,7 @@ import { customToEntry, isCustomEntry, customRenderProps } from "@engine/authori
 import { AddTemplate } from "./AddTemplate";
 import { loadTemplates, removeTemplate, subscribeTemplates } from "./customTemplates";
 import { findChartKeys } from "./chartKeys";
+import { ReviseButton } from "./ReviseButton";
 import { SchemaForm } from "./SchemaForm";
 import { BuildStage } from "./BuildStage";
 import { clearEditing, setMode, useEditing } from "./editing";
@@ -539,6 +540,16 @@ const EditScreen: React.FC<{
   const { mode } = useEditing();
 
   /**
+   * The preview, so the AI revision can render the frame being looked at.
+   *
+   * A complaint is nearly always about a moment — "they overlap at the start",
+   * "the label flashes past" — and a critique of some other frame is worse than
+   * none. Falls back to zero if the Player has not mounted, which only happens
+   * in Build mode where the button is not shown anyway.
+   */
+  const playerRef = useRef<PlayerRef>(null);
+
+  /**
    * Only a chart has anything to build, and it is found by shape rather than
    * by field name — a pasted template names its own fields.
    */
@@ -690,6 +701,26 @@ const EditScreen: React.FC<{
       <section className="stage">
         <div className="stage-bar">
           <button onClick={onBack}>‹ Library</button>
+
+          {/*
+            Pasted templates only. A built-in is ours to fix in the repo, and
+            offering to have a model rewrite one would be offering to fork it.
+          */}
+          {isCustomEntry(template) && mode === "preview" ? (
+            <ReviseButton
+              file={template.file}
+              values={renderProps}
+              format={format}
+              currentFrame={() => playerRef.current?.getCurrentFrame() ?? 0}
+              fps={FPS}
+              onRevised={(next) => {
+                // The entry is rebuilt from storage by the Library's
+                // subscription; resetting props keeps the form in step with a
+                // template whose fields may have changed under it.
+                setProps(structuredClone(customToEntry(next).defaults));
+              }}
+            />
+          ) : null}
 
           {buildable ? (
             <div className="btn-group mode-switch">
@@ -846,6 +877,7 @@ const EditScreen: React.FC<{
               />
             ) : (
               <Player
+                ref={playerRef}
                 component={template.component}
                 inputProps={renderProps}
                 durationInFrames={duration}
