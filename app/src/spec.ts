@@ -174,6 +174,24 @@ Ten coins falling is ONE layer repeated, never ten layers. Each copy starts
 \`spreadX\`/\`spreadY\` scatter the copies by that many percent of the frame,
 deterministically.
 
+**For anything that explodes, shatters, bursts or scatters outward, add
+\`"burst": true\`.** Each copy then flies its own direction instead of all
+following the same path, and the keyframe's x/y becomes a DISTANCE:
+
+\`\`\`
+"repeat": { "count": 28, "every": 0, "burst": true, "arc": 360,
+            "direction": 0, "sizeJitter": 0.6 },
+"keyframes": [
+  { "at": 0,    "y": 4,   "scale": 1,   "opacity": 1, "ease": "out" },
+  { "at": 0.55, "y": 62,  "rotate": 220, "ease": "out" },
+  { "at": 1.1,  "y": 105, "scale": 0.35, "opacity": 0, "ease": "in" }
+]
+\`\`\`
+- \`arc\` 360 is a full circle; 90 with \`direction\` 0 is a fountain upward.
+- \`sizeJitter\` varies the pieces so they are not identical.
+- **Never hand-write one layer per shard.** Twenty-eight layers is unreadable
+  and they all end up moving alike; one layer with \`burst\` is the answer.
+
 ### type: "text"
 \`\`\`
 { "id": "headline", "type": "text", "value": "{{headline}}",

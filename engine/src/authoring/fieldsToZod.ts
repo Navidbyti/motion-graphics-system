@@ -104,11 +104,12 @@ const oneField = (field: TemplateField): z.ZodTypeAny => {
       return described(field, z.array(annotationSchema).default([]));
 
     case "image":
-      // A data URL, supplied by the editor. Long, and never worth showing in a
-      // single-line box, so it is marked for the app's file picker.
-      return described(field, z.string().default(field.default)).describe(
-        `${field.label}__image`,
-      );
+      /*
+        One `describe`, not two. The second call overwrote the first, so the
+        internal "__image" marker became the visible label and the form showed
+        "Coin Image__image" to the person filling it in.
+      */
+      return described(field, z.string().default(field.default));
   }
 };
 

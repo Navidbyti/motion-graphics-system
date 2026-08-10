@@ -391,6 +391,29 @@ const layerBase = {
       /** Percent of the frame each copy is scattered by, side to side. */
       spreadX: z.number().min(0).max(100).default(0),
       spreadY: z.number().min(0).max(100).default(0),
+      /**
+       * Send the copies OUTWARD, each at its own angle.
+       *
+       * Without this every copy runs the identical keyframes and therefore
+       * flies the identical direction — which is why a shatter written as a
+       * repeat looked like confetti dropping in one place, and why the only way
+       * to get one before this was to hand-write a separate layer per shard
+       * with a separate direction in each.
+       *
+       * With it, the keyframe's x/y is treated as a DISTANCE and rotated to
+       * each copy's own bearing, so one layer and one set of keyframes produce
+       * a real radial burst.
+       */
+      burst: z.boolean().default(false),
+      /**
+       * Spread of the burst in degrees. 360 is a full circle; 90 aimed upward
+       * is a fountain, which is what most "explodes upward" requests mean.
+       */
+      arc: z.number().min(1).max(360).default(360),
+      /** Which way the arc points. 0 is up, 90 is right. */
+      direction: z.number().min(0).max(360).default(0),
+      /** Copies vary in size by this fraction, so pieces are not identical. */
+      sizeJitter: z.number().min(0).max(0.9).default(0),
     })
     .optional(),
 };
@@ -645,6 +668,15 @@ export const layerSchema = z.preprocess((raw) => {
     if (layer.type === "chart" && layer.kind === "macd") {
       delete layer.kind;
       layer.type = "macd";
+    }
+
+    /*
+      `url` for an image source. The fifth synonym in a row that meant exactly
+      one thing — and on an <img> the word `src` is arguably the odd one.
+    */
+    if (layer.type === "image" && layer.src === undefined && typeof layer.url === "string") {
+      layer.src = layer.url;
+      delete layer.url;
     }
 
     if (typeof layer.reveal === "string" && !["wipe", "grow"].includes(layer.reveal)) {

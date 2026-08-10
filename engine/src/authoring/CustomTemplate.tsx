@@ -281,15 +281,6 @@ const Layer: React.FC<{
     the three cannot interfere with each other however a template combines them.
   */
   /*
-    Keyframes replace the entrance rather than layering on top of it. A layer
-    cannot be both sprung into place and following a path, and quietly doing one
-    while the template asked for the other is worse than choosing.
-  */
-  const keyed = layer.keyframes?.length
-    ? sampleKeyframes(layer.keyframes, frame / fps)
-    : null;
-
-  /*
     Repeated copies are scattered deterministically and shifted along their own
     path — so ten coins fall from ten places rather than ten times from one.
   */
@@ -299,6 +290,56 @@ const Layer: React.FC<{
         y: scatter(copy + 977) * layer.repeat.spreadY,
       }
     : { x: 0, y: 0 };
+
+  /*
+    A burst rotates each copy's travel onto its own bearing.
+
+    Copies are spaced evenly around the arc rather than placed randomly —
+    random directions clump, and a shatter with two pieces going the same way
+    and a gap beside them reads as a mistake. A little jitter goes on top so it
+    is not mechanically even either.
+  */
+  const bearing =
+    layer.repeat?.burst && layer.repeat.count > 1
+      ? ((layer.repeat.direction -
+          layer.repeat.arc / 2 +
+          (layer.repeat.arc * copy) / (layer.repeat.count - 1) +
+          scatter(copy + 31) * (layer.repeat.arc / layer.repeat.count)) *
+          Math.PI) /
+        180
+      : null;
+
+  /** Copies differ in size so the pieces do not look stamped from one mould. */
+  const sizeVary = layer.repeat?.sizeJitter
+    ? 1 + scatter(copy + 613) * 2 * layer.repeat.sizeJitter
+    : 1;
+
+  /*
+    Keyframes replace the entrance rather than layering on top of it. A layer
+    cannot be both sprung into place and following a path, and quietly doing one
+    while the template asked for the other is worse than choosing.
+  */
+  const sampled = layer.keyframes?.length
+    ? sampleKeyframes(layer.keyframes, frame / fps)
+    : null;
+
+  /*
+    In a burst the keyframe's x/y stops being a direction and becomes a
+    DISTANCE, rotated onto this copy's bearing. The length comes from the vector
+    the template wrote, so "fly 50 up" means "fly 50 outward" and the author
+    still controls how far.
+  */
+  const keyed =
+    sampled && bearing !== null
+      ? {
+          ...sampled,
+          // 0 degrees is up, which is what people mean by a direction.
+          x: Math.sin(bearing) * Math.hypot(sampled.x, sampled.y),
+          y: -Math.cos(bearing) * Math.hypot(sampled.x, sampled.y),
+          scale: sampled.scale * sizeVary,
+        }
+      : sampled;
+
 
   const entranceOffset =
     !keyed && layer.motion.in === "fadeUp"
