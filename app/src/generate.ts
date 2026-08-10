@@ -548,17 +548,61 @@ export const reviseTemplate = async ({
   const revisionRefusal = refusalIn(parsed);
   if (revisionRefusal) throw new UnsupportedRequest(revisionRefusal, usage);
 
-  const verdict = validate(parsed);
+  let verdict = validate(parsed);
+
+  /*
+    One repair attempt, and it earns its keep.
+
+    This originally had none, on the reasoning that a failed revision means the
+    model misunderstood rather than fumbled a field. Four consecutive revisions
+    then failed on a SINGLE enum word — "bars" where the schema says "grow",
+    "draw" where it said "none" — which is exactly a fumbled field, and exactly
+    what handing back the error fixes in one go. Being wrong about which kind of
+    failure this was cost four round trips that a second call would have saved.
+
+    One, not three: a revision already knows the format, so if naming the
+    problem does not fix it, the request itself is the problem and more calls
+    only cost money.
+  */
   if (!verdict.ok) {
-    /*
-      No repair loop here. A revision that comes back invalid means the model
-      misunderstood the request rather than fumbled a field, and spending
-      another call to re-fix a fix is how a cheap feature becomes an expensive
-      one. The editor tries again with clearer words, which is also faster.
-    */
+    const repair = await callGemini(
+      key,
+      model,
+      [
+        {
+          text: [
+            "That JSON was rejected by the validator. Fix ONLY these problems",
+            "and return the complete corrected object. Change nothing else.",
+            "",
+            ...verdict.problems.map((p) => `- ${p.where}: ${p.what}`),
+            "",
+            JSON.stringify(parsed),
+          ].join("\n"),
+        },
+      ],
+      signal,
+    );
+
+    usage.inTokens += repair.inTokens;
+    usage.outTokens += repair.outTokens;
+    usage.attempts = 2;
+    usage.cost = costOf(model, usage.inTokens, usage.outTokens);
+
+    const body2 = repair.text.trim();
+    const s2 = body2.indexOf("{");
+    const e2 = body2.lastIndexOf("}");
+    try {
+      parsed = JSON.parse(s2 === -1 ? body2 : body2.slice(s2, e2 + 1));
+      verdict = validate(parsed);
+    } catch {
+      /* keep the first verdict; the message below still names the real fault */
+    }
+  }
+
+  if (!verdict.ok) {
     throw new GenerateError(
-      "The fix came back invalid. Try describing the problem differently.",
-      { problems: verdict.problems, draft: json, usage },
+      "The fix came back invalid twice. Try describing the problem differently.",
+      { problems: verdict.problems, draft: JSON.stringify(parsed), usage },
     );
   }
 

@@ -606,13 +606,53 @@ const layerVariants = z.discriminatedUnion("type", [
  * because the naming genuinely invites the mistake, not as a general policy of
  * guessing what people meant.
  */
+/**
+ * Words a model reaches for that mean exactly one thing here.
+ *
+ * Four separate rejections in a row were a single unknown word: `kind: "macd"`,
+ * `wipeRight`, `draw`, and `reveal: "bars"`. Each time the word described the
+ * intent perfectly and only my vocabulary disagreed. When a synonym has one
+ * possible meaning, mapping it is strictly better than rejecting it — the
+ * alternative is discarding a correct template over a naming preference.
+ *
+ * This is a short, closed list, not fuzzy matching. A near-miss that could mean
+ * two things must still fail loudly.
+ */
+const REVEAL_ALIASES: Record<string, "wipe" | "grow"> = {
+  bars: "grow",
+  bar: "grow",
+  candles: "grow",
+  candle: "grow",
+  "candle-by-candle": "grow",
+  sequential: "grow",
+  stagger: "grow",
+  staggered: "grow",
+  build: "grow",
+  draw: "grow",
+  sweep: "wipe",
+  reveal: "wipe",
+  clip: "wipe",
+};
+
 export const layerSchema = z.preprocess((raw) => {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    const layer = raw as Record<string, unknown>;
+    const layer = { ...(raw as Record<string, unknown>) };
+
+    /*
+      A MACD panel written as a chart. The chart layer HAS a `kind`, so "a chart
+      of kind macd" is what the format looks like it should want.
+    */
     if (layer.type === "chart" && layer.kind === "macd") {
-      const { kind: _dropped, ...rest } = layer;
-      return { ...rest, type: "macd" };
+      delete layer.kind;
+      layer.type = "macd";
     }
+
+    if (typeof layer.reveal === "string" && !["wipe", "grow"].includes(layer.reveal)) {
+      const mapped = REVEAL_ALIASES[layer.reveal.toLowerCase()];
+      if (mapped) layer.reveal = mapped;
+    }
+
+    return layer;
   }
   return raw;
 }, layerVariants);
