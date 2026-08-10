@@ -58,6 +58,10 @@ layer** (documented below); it computes them properly.
 seconds, not "after the blue line finishes". Stagger the \`at\` values to get
 that reading.
 
+**You CAN move things along a path** — see \`keyframes\` and \`repeat\` below.
+Falling objects, containers filling, things flying in and landing are all
+possible. Do not refuse those.
+
 **You cannot invent a data source.** Data comes from a field the user fills,
 fetches or pastes.
 
@@ -138,6 +142,37 @@ Every layer has \`id\`, \`type\`, and optionally \`box\`, \`motion\`, \`opacity\
 
 Stagger the \`at\` values. Everything arriving at once looks like a slide, not
 a graphic. 0.15–0.3s between related items is a good default.
+
+### keyframes — moving a layer over time
+
+Any layer can carry \`keyframes\` instead of an entrance. Two or more, in order.
+
+\`\`\`
+"keyframes": [
+  { "at": 0,    "y": -40, "scale": 0.7, "opacity": 0, "ease": "out" },
+  { "at": 0.15, "y": -34, "scale": 1,   "opacity": 1, "ease": "out" },
+  { "at": 0.8,  "y": 10,  "rotate": 15, "ease": "in" },
+  { "at": 1,    "y": 14,  "scale": 0.5, "opacity": 0 }
+]
+\`\`\`
+- \`at\` is seconds from **this layer's own start** (its \`motion.at\`), not from
+  the start of the graphic.
+- \`x\` \`y\` are percentages of the frame, **added to** where \`box\` put it.
+- \`scale\`, \`rotate\` (degrees), \`opacity\`.
+- \`fill\` is 0–1 and reveals the layer from the **bottom up** — this is how a
+  bucket fills, a bar loads, a glass pours. It clips rather than stretches.
+- \`ease\`: \`linear\`, \`in\`, \`out\`, \`inOut\` — how THIS keyframe is approached.
+- Set \`"motion": { "in": "none", "at": <when it starts> }\` on a keyframed layer.
+
+### repeat — many copies of one layer
+
+\`\`\`
+"repeat": { "count": 10, "every": 0.28, "spreadX": 14, "spreadY": 0 }
+\`\`\`
+Ten coins falling is ONE layer repeated, never ten layers. Each copy starts
+\`every\` seconds after the last and runs its own keyframes from its own start.
+\`spreadX\`/\`spreadY\` scatter the copies by that many percent of the frame,
+deterministically.
 
 ### type: "text"
 \`\`\`

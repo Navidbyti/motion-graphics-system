@@ -104,6 +104,75 @@ const resolveColor = (
 
 const RADIUS: Record<string, number> = { ...radiusTokens, none: 0 };
 
+/**
+ * Deterministic scatter for repeated copies.
+ *
+ * Not Math.random. Remotion renders every frame in isolation, so a random
+ * offset would differ frame to frame and ten falling coins would jitter in
+ * place instead of falling. Hashing the copy index gives the same answer every
+ * time it is asked, which is what makes the motion hold still.
+ */
+const scatter = (n: number) => {
+  const x = Math.sin((n + 1) * 12.9898) * 43758.5453;
+  return x - Math.floor(x) - 0.5;
+};
+
+const EASINGS = {
+  linear: (t: number) => t,
+  in: (t: number) => t * t,
+  out: (t: number) => 1 - (1 - t) * (1 - t),
+  inOut: (t: number) => (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)),
+};
+
+type Sampled = {
+  x: number;
+  y: number;
+  scale: number;
+  rotate: number;
+  opacity: number;
+  fill: number;
+};
+
+/**
+ * Where a keyframed layer is at this instant.
+ *
+ * Held at the first frame before it starts and the last after it ends, rather
+ * than extrapolated: a coin that keeps travelling past its final keyframe
+ * leaves the screen, and "it flies off after landing" is not something anyone
+ * asked for. Each segment is eased by the keyframe being approached, so the
+ * template controls the feel of each move rather than the whole path.
+ */
+const sampleKeyframes = (
+  keys: { at: number; x: number; y: number; scale: number; rotate: number; opacity: number; fill: number; ease: keyof typeof EASINGS }[],
+  seconds: number,
+): Sampled => {
+  const sorted = [...keys].sort((a, b) => a.at - b.at);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (seconds <= first.at) return first;
+  if (seconds >= last.at) return last;
+
+  let i = 0;
+  while (i < sorted.length - 2 && seconds > sorted[i + 1].at) i++;
+
+  const a = sorted[i];
+  const b = sorted[i + 1];
+  const span = b.at - a.at;
+  // Two keyframes at the same instant would divide by zero and produce NaN,
+  // which propagates into every transform and renders nothing at all.
+  const t = span <= 0 ? 1 : EASINGS[b.ease]((seconds - a.at) / span);
+
+  const mix = (from: number, to: number) => from + (to - from) * t;
+  return {
+    x: mix(a.x, b.x),
+    y: mix(a.y, b.y),
+    scale: mix(a.scale, b.scale),
+    rotate: mix(a.rotate, b.rotate),
+    opacity: mix(a.opacity, b.opacity),
+    fill: mix(a.fill, b.fill),
+  };
+};
+
 const ANCHOR_SHIFT: Record<string, [number, number]> = {
   topLeft: [0, 0],
   top: [-50, 0],
@@ -128,7 +197,9 @@ const Layer: React.FC<{
   fallbackDirection: "auto" | "ltr" | "rtl";
   /** How long this layer is mounted, from its own start. */
   layerFrames: number;
-}> = ({ layer, values, brand, layout, fallbackDirection, layerFrames }) => {
+  /** Which repeated copy this is. Zero when the layer is not repeated. */
+  copy?: number;
+}> = ({ layer, values, brand, layout, fallbackDirection, layerFrames, copy = 0 }) => {
   /*
     Zero at the layer's own start, because the parent wraps this in a
     <Sequence>. Every delay calculation below is therefore relative and there is
@@ -197,15 +268,39 @@ const Layer: React.FC<{
     separate properties the browser applies them in a fixed, defined order, so
     the three cannot interfere with each other however a template combines them.
   */
+  /*
+    Keyframes replace the entrance rather than layering on top of it. A layer
+    cannot be both sprung into place and following a path, and quietly doing one
+    while the template asked for the other is worse than choosing.
+  */
+  const keyed = layer.keyframes?.length
+    ? sampleKeyframes(layer.keyframes, frame / fps)
+    : null;
+
+  /*
+    Repeated copies are scattered deterministically and shifted along their own
+    path — so ten coins fall from ten places rather than ten times from one.
+  */
+  const spread = layer.repeat
+    ? {
+        x: scatter(copy) * layer.repeat.spreadX,
+        y: scatter(copy + 977) * layer.repeat.spreadY,
+      }
+    : { x: 0, y: 0 };
+
   const entranceOffset =
-    layer.motion.in === "fadeUp" ? interpolate(progress, [0, 1], [px(48), 0]) : 0;
+    !keyed && layer.motion.in === "fadeUp"
+      ? interpolate(progress, [0, 1], [px(48), 0])
+      : 0;
 
   const opacity =
     layer.opacity *
     leaving *
-    (layer.motion.in.startsWith("wipe") || layer.motion.in === "typewriter"
-      ? 1
-      : interpolate(progress, [0, 1], [0, 1], { extrapolateRight: "clamp" }));
+    (keyed
+      ? keyed.opacity
+      : layer.motion.in.startsWith("wipe") || layer.motion.in === "typewriter"
+        ? 1
+        : interpolate(progress, [0, 1], [0, 1], { extrapolateRight: "clamp" }));
 
   const frameStyle: React.CSSProperties = {
     position: "absolute",
@@ -224,10 +319,19 @@ const Layer: React.FC<{
     width: layer.box.w === undefined ? "max-content" : (layer.box.w / 100) * availableW,
     maxWidth: layer.box.w === undefined ? availableW : undefined,
     height: layer.box.h === undefined ? undefined : (layer.box.h / 100) * availableH,
-    translate: `${shiftX}% calc(${shiftY}% + ${entranceOffset}px)`,
-    rotate: layer.box.rotate ? `${layer.box.rotate}deg` : undefined,
-    scale:
-      layer.motion.in === "scaleIn"
+    /*
+      Keyframe offsets are percentages of the FRAME, converted here, so a fall
+      of `y: 60` means the same distance in every format rather than depending
+      on how big the layer happens to be.
+    */
+    translate: `calc(${shiftX}% + ${((keyed?.x ?? 0) + spread.x) * availableW / 100}px) calc(${shiftY}% + ${entranceOffset + ((keyed?.y ?? 0) + spread.y) * availableH / 100}px)`,
+    rotate:
+      keyed || layer.box.rotate
+        ? `${(keyed?.rotate ?? 0) + layer.box.rotate}deg`
+        : undefined,
+    scale: keyed
+      ? String(keyed.scale)
+      : layer.motion.in === "scaleIn"
         ? String(interpolate(progress, [0, 1], [0.94, 1]))
         : undefined,
     opacity,
@@ -238,7 +342,14 @@ const Layer: React.FC<{
       chart or a MACD panel wiped left-to-right is the gesture people expect
       for anything on a time axis.
     */
-    clipPath: layer.motion.in.startsWith("wipe")
+    /*
+      `fill` clips from the bottom up — a bucket filling, a bar loading, a glass
+      pouring. A clip rather than a height change so nothing inside it stretches
+      as the level rises.
+    */
+    clipPath: keyed && keyed.fill < 1
+      ? `inset(${(1 - keyed.fill) * 100}% 0 0 0)`
+      : layer.motion.in.startsWith("wipe")
       ? (() => {
           const eaten = interpolate(progress, [0, 1], [100, 0], {
             extrapolateRight: "clamp",
@@ -651,25 +762,43 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
             : sec(layer.motion.until, fps)) - from,
         );
 
-        return (
-          <Sequence
-            key={layer.id}
-            from={from}
-            durationInFrames={layerFrames}
-            // No wrapper element: the layer positions itself absolutely, and a
-            // Sequence div in between would become the containing block.
-            layout="none"
-          >
-            <Layer
-              layer={layer}
-              values={values}
-              brand={brand}
-              layout={layout}
-              fallbackDirection={direction}
-              layerFrames={layerFrames}
-            />
-          </Sequence>
-        );
+        /*
+          A repeated layer is N Sequences, each starting later than the last.
+
+          Staggering by the SEQUENCE rather than inside the layer means every
+          copy sees its own clock — a coin dropped a second later is at the
+          start of its fall, not a second into someone else's. It also keeps
+          Remotion unmounting each copy outside its own window.
+        */
+        const copies = layer.repeat?.count ?? 1;
+        const stagger = sec(layer.repeat?.every ?? 0, fps);
+
+        return Array.from({ length: copies }, (_, copy) => {
+          const start = from + copy * stagger;
+          // Later copies get less time before the graphic ends. Clamped so a
+          // stagger longer than the remaining run does not go negative.
+          const window = Math.max(1, layerFrames - copy * stagger);
+          return (
+            <Sequence
+              key={`${layer.id}-${copy}`}
+              from={start}
+              durationInFrames={window}
+              // No wrapper element: the layer positions itself absolutely, and a
+              // Sequence div in between would become the containing block.
+              layout="none"
+            >
+              <Layer
+                layer={layer}
+                values={values}
+                brand={brand}
+                layout={layout}
+                fallbackDirection={direction}
+                layerFrames={window}
+                copy={copy}
+              />
+            </Sequence>
+          );
+        });
       })}
     </AbsoluteFill>
   );

@@ -315,6 +315,41 @@ export const motionSchema = z.object({
  * Layers
  * ------------------------------------------------------------------ */
 
+/**
+ * A moment in a layer's life: where it is and what it looks like.
+ *
+ * Keyframes are DATA, not an expression language, and the difference is the
+ * whole reason they are allowed. An expression computes — `price * 1.05`,
+ * conditionals, loops — and that is what makes pasted code unsafe. A keyframe
+ * states a value at a time and hands the interpolation to the interpreter,
+ * which owns the easing, the clamping and the frame rate. It can no more
+ * express `Math.random()` than `box` can.
+ *
+ * Everything is relative to where `box` already put the layer, so a keyframed
+ * layer is still positioned and anchored the same way as any other, and a
+ * template can animate one property without restating the rest.
+ */
+export const keyframeSchema = z.object({
+  /** Seconds from the LAYER's own start, not from the start of the graphic. */
+  at: z.number().min(0).max(120),
+  /** Percent of the frame, added to the layer's placed position. */
+  x: z.number().min(-200).max(200).default(0),
+  y: z.number().min(-200).max(200).default(0),
+  scale: z.number().min(0).max(10).default(1),
+  rotate: z.number().min(-720).max(720).default(0),
+  opacity: z.number().min(0).max(1).default(1),
+  /**
+   * How much of the layer is visible, filling UP from the bottom.
+   *
+   * 1 is whole, 0 is nothing. This is what a container filling looks like —
+   * a bucket, a progress bar, a glass — and it is a clip rather than a height
+   * change so nothing inside stretches as it fills.
+   */
+  fill: z.number().min(0).max(1).default(1),
+  /** How this keyframe is approached. */
+  ease: z.enum(["linear", "in", "out", "inOut"]).default("inOut"),
+});
+
 const layerBase = {
   /** Unique within the template. Used for ordering and error messages. */
   id: z.string().min(1).max(40),
@@ -322,6 +357,34 @@ const layerBase = {
   motion: motionSchema.default({}),
   /** 0–1. Applies to the whole layer, on top of any colour alpha. */
   opacity: z.number().min(0).max(1).default(1),
+
+  /**
+   * Movement over time. Two or more, sorted by `at`.
+   *
+   * Supplying these replaces the `motion.in` entrance — a layer cannot both be
+   * sprung into place and follow a path, and silently doing one while the
+   * template asked for the other is worse than picking.
+   */
+  keyframes: z.array(keyframeSchema).max(40).optional(),
+
+  /**
+   * Draw this layer several times, staggered.
+   *
+   * Ten coins falling is one layer repeated, not ten layers — and a template
+   * with ten near-identical layers is one nobody can edit afterwards. The
+   * offsets are deterministic: Remotion renders frames in isolation, so
+   * anything random would differ per frame and the whole graphic would boil.
+   */
+  repeat: z
+    .object({
+      count: z.number().int().min(1).max(60).default(1),
+      /** Seconds between one copy starting and the next. */
+      every: z.number().min(0).max(10).default(0.2),
+      /** Percent of the frame each copy is scattered by, side to side. */
+      spreadX: z.number().min(0).max(100).default(0),
+      spreadY: z.number().min(0).max(100).default(0),
+    })
+    .optional(),
 };
 
 export const textStyleSchema = z.object({
