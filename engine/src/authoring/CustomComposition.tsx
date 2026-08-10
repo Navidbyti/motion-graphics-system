@@ -25,6 +25,7 @@ export type CustomCompositionProps = {
   theme?: ThemeInput | null;
   scale?: number;
   direction?: "auto" | "ltr" | "rtl";
+  speed?: number;
 };
 
 export const customCompositionId = (format: keyof typeof formats) =>
@@ -37,6 +38,7 @@ export const CustomComposition: React.FC<CustomCompositionProps> = ({
   theme,
   scale,
   direction,
+  speed,
 }) => {
   const parsed = templateFileSchema.safeParse(template);
 
@@ -62,6 +64,7 @@ export const CustomComposition: React.FC<CustomCompositionProps> = ({
       theme={theme}
       scale={scale}
       direction={direction}
+      speed={speed}
     />
   );
 };
@@ -77,7 +80,14 @@ export const customMetadata: CalculateMetadataFunction<CustomCompositionProps> =
   const parsed = templateFileSchema.safeParse(props.template ?? defaultProps.template);
   return {
     durationInFrames: parsed.success
-      ? customDurationInFrames(parsed.data, FPS)
+      ? Math.max(
+          1,
+          // Matches the entry's own calculation, or the export would be a
+          // different length from the preview.
+          Math.round(
+            customDurationInFrames(parsed.data, FPS) / (Number(props.speed) || 1),
+          ),
+        )
       : // An invalid template still needs a length, or Remotion cannot build the
         // composition far enough to report the real problem from the component.
         FPS,

@@ -59,6 +59,7 @@ export const customToEntry = (file: TemplateFile): CustomEntry => {
       theme={props.theme as never}
       scale={Number(props.scale ?? 1)}
       direction={(props.direction as "auto" | "ltr" | "rtl") ?? "auto"}
+      speed={Number(props.speed ?? 1)}
     />
   );
 
@@ -78,7 +79,16 @@ export const customToEntry = (file: TemplateFile): CustomEntry => {
     overlay: true,
     // The fps the app is running at, not a baked-in 30 — the entry contract
     // passes it in precisely so nothing has to assume.
-    durationInFrames: (_props: unknown, fps: number) => customDurationInFrames(file, fps),
+    /*
+      Speed shortens the graphic as well as quickening it. "Twice as fast" that
+      still runs twelve seconds is not twice as fast, it is the same length with
+      eight seconds of nothing at the end.
+    */
+    durationInFrames: (props: Record<string, unknown>, fps: number) =>
+      Math.max(
+        1,
+        Math.round(customDurationInFrames(file, fps) / (Number(props?.speed) || 1)),
+      ),
   };
 };
 
@@ -96,4 +106,5 @@ export const customRenderProps = (file: TemplateFile, values: Record<string, unk
   theme: values.theme,
   scale: values.scale,
   direction: values.direction,
+  speed: values.speed,
 });

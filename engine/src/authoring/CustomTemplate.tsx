@@ -46,6 +46,8 @@ export type CustomTemplateProps = {
   theme?: ThemeInput | null;
   scale?: number;
   direction?: "auto" | "ltr" | "rtl";
+  /** 1 is normal, 2 is twice as fast. */
+  speed?: number;
 };
 
 /* ------------------------------------------------------------------ *
@@ -199,7 +201,9 @@ const Layer: React.FC<{
   layerFrames: number;
   /** Which repeated copy this is. Zero when the layer is not repeated. */
   copy?: number;
-}> = ({ layer, values, brand, layout, fallbackDirection, layerFrames, copy = 0 }) => {
+  /** Animation speed. The layer's own clock runs this much faster. */
+  rate?: number;
+}> = ({ layer, values, brand, layout, fallbackDirection, layerFrames, copy = 0, rate = 1 }) => {
   /*
     Zero at the layer's own start, because the parent wraps this in a
     <Sequence>. Every delay calculation below is therefore relative and there is
@@ -208,8 +212,14 @@ const Layer: React.FC<{
     the window, so a forty-layer template is not compositing forty invisible
     boxes on every frame of the render.
   */
-  const frame = useCurrentFrame();
+  const rawFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  /*
+    One multiplication, and everything downstream is sped up together: the
+    entrance spring, the chart's draw, the keyframe timeline and the per-word
+    stagger all read this.
+  */
+  const frame = rawFrame * rate;
   const { px, width, height, isVertical } = layout;
   const { palette } = brand;
 
@@ -235,7 +245,9 @@ const Layer: React.FC<{
     layer.motion.until !== undefined || layer.motion.out
       ? interpolate(
           frame,
-          [layerFrames - sec(exitSeconds, fps), layerFrames],
+          // layerFrames is real frames; `frame` has been scaled, so this
+          // comparison has to be scaled too or the exit fires early.
+          [(layerFrames - sec(exitSeconds, fps)) * rate, layerFrames * rate],
           [1, 0],
           { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE.out },
         )
@@ -736,11 +748,29 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
   theme,
   scale,
   direction = "auto",
+  speed = 1,
 }) => {
-  useTheme(brandId, theme);
-  const brand = getBrand(brandId);
+  /*
+    The RESOLVED brand, not the raw one.
+
+    `useTheme` applies the editor's colour overrides on top of whichever brand
+    they picked and returns the result. The first version called it for its font
+    side-effect and then threw the return away, using getBrand() instead — so
+    the colour tuner appeared to do nothing on a pasted template. Every override
+    was computed correctly and then discarded one line later.
+  */
+  const brand = useTheme(brandId, theme);
   const layout = useLayout({ scale, direction });
   const { fps, durationInFrames } = useVideoConfig();
+
+  /*
+    Animation speed. 2 is twice as fast, which means every layer sees a clock
+    running at twice the rate — entrances, chart draws, keyframes and staggers
+    alike. Scaling the FRAME rather than each duration is what keeps them in
+    step; scaling them individually is how a chart ends up finishing before the
+    label that was meant to introduce it.
+  */
+  const rate = Math.max(0.1, Number(speed) || 1);
 
   return (
     <AbsoluteFill>
@@ -749,7 +779,7 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
         the annotation list uses, so there is one thing to learn rather than two.
       */}
       {template.layers.map((layer) => {
-        const from = sec(layer.motion.at, fps);
+        const from = sec(layer.motion.at / rate, fps);
         /*
           A layer runs until its own `until`, or to the end of the graphic.
           Clamped to at least one frame: a template can be shortened after its
@@ -761,7 +791,7 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
           1,
           (layer.motion.until === undefined
             ? durationInFrames
-            : sec(layer.motion.until, fps)) - from,
+            : sec(layer.motion.until / rate, fps)) - from,
         );
 
         /*
@@ -773,7 +803,7 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
           Remotion unmounting each copy outside its own window.
         */
         const copies = layer.repeat?.count ?? 1;
-        const stagger = sec(layer.repeat?.every ?? 0, fps);
+        const stagger = sec((layer.repeat?.every ?? 0) / rate, fps);
 
         return Array.from({ length: copies }, (_, copy) => {
           const start = from + copy * stagger;
@@ -797,6 +827,7 @@ export const CustomTemplate: React.FC<CustomTemplateProps> = ({
                 fallbackDirection={direction}
                 layerFrames={window}
                 copy={copy}
+                rate={rate}
               />
             </Sequence>
           );
