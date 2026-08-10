@@ -32,7 +32,6 @@
 
 import { z } from "zod";
 import { zColor } from "@remotion/zod-types";
-import { ICON_NAMES } from "./icons";
 
 /**
  * Bumped only when an OLD file would render WRONG under new code.
@@ -694,6 +693,20 @@ export const layerSchema = z.preprocess((raw) => {
     }
 
     /*
+      `icon` for the icon's name — the sixth synonym in a row, and on a layer
+      whose type is already "icon" the word `name` is arguably the vaguer one.
+    */
+    if (layer.type === "icon" && layer.name === undefined) {
+      const alt = layer.icon ?? layer.iconName ?? layer.symbol;
+      if (typeof alt === "string") {
+        layer.name = alt;
+        delete layer.icon;
+        delete layer.iconName;
+        delete layer.symbol;
+      }
+    }
+
+    /*
       `url` for an image source. The fifth synonym in a row that meant exactly
       one thing — and on an <img> the word `src` is arguably the odd one.
     */
@@ -817,20 +830,14 @@ export const templateFileSchema = z
       }
 
       /*
-        An icon name that is not in the bundled set draws nothing at all. The
-        model has no way to know the list without being told, so the error names
-        it — that is what makes one repair attempt enough.
+        No check on the icon name.
+
+        This used to reject the whole template when a name was not in the set —
+        one unknown word discarded a working ten-layer graphic, which is the
+        wrong trade every time. Names are matched to the nearest icon at render
+        instead, so a near-miss is a thing you can see and correct in the panel
+        rather than a wall.
       */
-      if (layer.type === "icon" && !ICON_NAMES.includes(layer.name)) {
-        const near = ICON_NAMES.filter((n) => n.includes(layer.name) || layer.name.includes(n));
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["layers", i, "name"],
-          message: near.length
-            ? `no icon called "${layer.name}". Did you mean ${near.slice(0, 4).join(", ")}?`
-            : `no icon called "${layer.name}". Available: ${ICON_NAMES.join(", ")}`,
-        });
-      }
 
       // Shading between overlays that do not exist draws nothing, silently.
       if (layer.type === "chart" && layer.shadeBetween) {

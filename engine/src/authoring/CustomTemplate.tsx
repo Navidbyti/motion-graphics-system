@@ -35,7 +35,7 @@ import { AnnotationLayer } from "../charting/AnnotationLayer";
 import { annotationPrices, type Annotation } from "../charting/annotations";
 import { priceScale, type Bar } from "../charting/geometry";
 import { indicator } from "../charting/indicators";
-import { BRAND_ICONS, GLYPH_ICONS } from "./icons";
+import { resolveIcon } from "./iconLookup";
 import type { TemplateFile, TemplateLayer } from "./format";
 
 export type CustomTemplateProps = {
@@ -758,15 +758,13 @@ const Layer: React.FC<{
   }
 
   if (layer.type === "icon") {
-    const brandMark = BRAND_ICONS[layer.name];
-    const glyph = GLYPH_ICONS[layer.name];
     /*
-      An unknown name draws nothing rather than a "missing" box. The paste step
-      already rejects names outside the set, so reaching this means the set
-      shrank under a template that used to work — and a blank is a recoverable
-      graphic where a red placeholder shipped into someone's video is not.
+      Matched, not looked up. "bucket" finds paint-bucket, "money" finds
+      banknote, "btc" finds bitcoin — see iconLookup. Nothing here can fail,
+      because a near-miss icon in a rendered graphic beats a rejected template.
     */
-    if (!brandMark && !glyph) return null;
+    const found = resolveIcon(layer.name);
+    if (found.kind === "none") return null;
 
     const tint = resolveColor(layer.color, palette, values);
 
@@ -776,13 +774,13 @@ const Layer: React.FC<{
           viewBox="0 0 24 24"
           style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}
         >
-          {brandMark ? (
+          {found.kind === "brand" ? (
             /*
               Brand marks keep their OWN colour unless told otherwise. A grey
               Bitcoin logo is not the Bitcoin logo, and the whole reason to
               reach for a brand mark is that it is instantly recognisable.
             */
-            <path d={brandMark.path} fill={tint ?? brandMark.hex} />
+            <path d={found.path} fill={tint ?? found.hex} />
           ) : (
             <g
               fill="none"
@@ -790,7 +788,7 @@ const Layer: React.FC<{
               strokeWidth={layer.strokeWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
-              dangerouslySetInnerHTML={{ __html: glyph }}
+              dangerouslySetInnerHTML={{ __html: found.markup }}
             />
           )}
         </svg>

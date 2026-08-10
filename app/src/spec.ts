@@ -26,7 +26,7 @@ import {
   TYPE_SIZES,
   WEIGHTS,
 } from "@engine/authoring/format";
-import { ICON_NAMES } from "@engine/authoring/icons";
+import { ICON_SUGGESTED } from "@engine/authoring/icons";
 import {
   exampleChartJson,
   exampleMacdJson,
@@ -240,7 +240,11 @@ be found by the user and many hosts block it at render time.
   \`strokeWidth\`.
 - \`w\` and \`h\` should match — they are square.
 
-Available: ${ICON_NAMES.join(", ")}
+**2,000+ icons are bundled**, and an unknown name is matched to the nearest one
+rather than rejected — so name what you mean and it will land. Common ones:
+
+${ICON_SUGGESTED.join(", ")}, and most everyday objects (paint-bucket, anvil,
+wine, umbrella, briefcase, key, hammer, leaf, heart, brain, house…).
 
 ### type: "logo"
 Draws the brand's logo. Nothing to configure.

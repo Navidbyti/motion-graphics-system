@@ -47,8 +47,21 @@ const BRANDS = [
   // rather than failing, so a removed one is visible instead of silently absent.
 ];
 
-/** Outline glyphs — stroked, meaning-carrying, tinted by the template. */
-const GLYPHS = [
+/**
+ * EVERY lucide glyph, not a chosen few.
+ *
+ * The curated list was the mistake. Someone asked for a bucket, `paint-bucket`
+ * existed upstream, and the template was rejected because I had not thought to
+ * include it. The long tail is exactly where a curated list fails: nobody can
+ * guess in advance that a video needs an anvil, a stethoscope or a wine glass.
+ *
+ * All 2,025 of them cost about 400 KB — nothing against a 100 MB installer, and
+ * far less than the cost of one rejected template.
+ */
+const ALL_GLYPHS = true;
+
+/** Kept only to seed the short list the AI prompt prints. */
+const COMMON_GLYPHS = [
   "check", "check-check", "x", "arrow-up", "arrow-down", "arrow-right",
   "arrow-left", "trending-up", "trending-down", "chart-column", "chart-line",
   "chart-pie", "circle-alert", "circle-check", "circle-x", "info", "star",
@@ -80,7 +93,11 @@ for (const name of BRANDS) {
   out.brands[name] = { path: icon.path, hex: `#${icon.hex}`, title: icon.title };
 }
 
-for (const name of GLYPHS) {
+const glyphNames = ALL_GLYPHS
+  ? fs.readdirSync(lucideDir).filter((f) => f.endsWith(".svg")).map((f) => f.slice(0, -4))
+  : COMMON_GLYPHS;
+
+for (const name of glyphNames) {
   const file = path.join(lucideDir, `${name}.svg`);
   if (!fs.existsSync(file)) {
     missing.push(`glyph:${name}`);
@@ -124,6 +141,20 @@ export const ICON_NAMES = [
   ...Object.keys(BRAND_ICONS),
   ...Object.keys(GLYPH_ICONS),
 ].sort();
+
+/**
+ * A short list for the AI prompt.
+ *
+ * Printing all ${Object.keys(out.brands).length + Object.keys(out.glyphs).length} names would add
+ * thousands of tokens to every generation for no benefit — unknown names are
+ * matched to the nearest one at paste time, so the model only needs a sense of
+ * what exists, not an inventory.
+ */
+export const ICON_SUGGESTED = ${JSON.stringify(
+  [...Object.keys(out.brands), ...COMMON_GLYPHS.filter((g) => out.glyphs[g])],
+  null,
+  2,
+)};
 `;
 
 const target = path.join(here, "..", "src", "authoring", "icons.ts");
