@@ -20,6 +20,7 @@ import { AddTemplate } from "./AddTemplate";
 import { loadTemplates, removeTemplate, subscribeTemplates } from "./customTemplates";
 import { findChartKeys } from "./chartKeys";
 import { ReviseButton } from "./ReviseButton";
+import { ShareTemplate } from "./ShareTemplate";
 import { SchemaForm } from "./SchemaForm";
 import { BuildStage } from "./BuildStage";
 import { clearEditing, setMode, useEditing } from "./editing";
@@ -931,6 +932,14 @@ const EditScreen: React.FC<{
             })
           }
         />
+
+        {/*
+          Sharing the TEMPLATE, which is a different thing from exporting the
+          video and is asked for as often. A template that only exists in one
+          browser's storage cannot be handed to a colleague, backed up, or
+          submitted for inclusion — and TERMS.md invites people to submit them.
+        */}
+        {isCustomEntry(template) ? <ShareTemplate file={template.file} /> : null}
 
         <div className="export">
           <label className="field">

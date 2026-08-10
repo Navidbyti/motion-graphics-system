@@ -559,3 +559,11 @@ td input { padding: 4px 6px; }
   font: inherit; padding: 8px 10px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--bg); color: var(--text);
 }
+
+/* Sharing the template, above Export, which shares the video. */
+.share {
+  display: grid; gap: 8px; margin-bottom: 20px;
+  padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--raised);
+}
+.share p { margin: 0; }
