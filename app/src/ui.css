@@ -545,3 +545,17 @@ td input { padding: 4px 6px; }
 }
 .add-offer p { margin: 4px 0 0; max-width: 52ch; }
 .add-offer button { white-space: nowrap; }
+
+/* A refusal is an answer, so it reads as information rather than as a fault. */
+.add-unsupported {
+  display: grid; gap: 6px;
+  padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg);
+}
+.add-unsupported p { margin: 0; }
+.revise-error ul { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+.revise-input {
+  width: 100%; resize: vertical;
+  font: inherit; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}

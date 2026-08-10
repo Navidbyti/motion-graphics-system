@@ -61,10 +61,15 @@ that reading.
 **You cannot invent a data source.** Data comes from a field the user fills,
 fetches or pastes.
 
-If what the user asked for genuinely needs something not in this document, say
-so in one sentence instead of producing JSON — do not approximate it with text
-layers. A stack of labels where a graphic was asked for is worse than an honest
-"this format cannot do that yet."
+If what the user asked for genuinely needs something not in this document,
+reply with **exactly this and nothing else** — no version, no id, no layers:
+
+\`\`\`json
+{ "unsupported": "One sentence saying what it cannot do." }
+\`\`\`
+
+Do not approximate it with text layers. A stack of labels where a graphic was
+asked for is worse than an honest "this format cannot do that yet."
 
 ## The object
 

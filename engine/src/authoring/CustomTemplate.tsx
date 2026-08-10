@@ -203,7 +203,7 @@ const Layer: React.FC<{
   const opacity =
     layer.opacity *
     leaving *
-    (layer.motion.in === "wipeUp" || layer.motion.in === "typewriter"
+    (layer.motion.in.startsWith("wipe") || layer.motion.in === "typewriter"
       ? 1
       : interpolate(progress, [0, 1], [0, 1], { extrapolateRight: "clamp" }));
 
@@ -232,10 +232,22 @@ const Layer: React.FC<{
         : undefined,
     opacity,
     // Only meaningful for wipeUp; harmless otherwise.
-    clipPath:
-      layer.motion.in === "wipeUp"
-        ? `inset(${interpolate(progress, [0, 1], [100, 0], { extrapolateRight: "clamp" })}% 0 0 0)`
-        : undefined,
+    /*
+      One inset, three directions. `inset()` eats in from top/right/bottom/left
+      in that order, so a wipe is just a matter of which side shrinks — and a
+      chart or a MACD panel wiped left-to-right is the gesture people expect
+      for anything on a time axis.
+    */
+    clipPath: layer.motion.in.startsWith("wipe")
+      ? (() => {
+          const eaten = interpolate(progress, [0, 1], [100, 0], {
+            extrapolateRight: "clamp",
+          });
+          if (layer.motion.in === "wipeUp") return `inset(${eaten}% 0 0 0)`;
+          if (layer.motion.in === "wipeRight") return `inset(0 ${eaten}% 0 0)`;
+          return `inset(0 0 0 ${eaten}%)`;
+        })()
+      : undefined,
   };
 
   /* -------------------------------- content ------------------------------- */

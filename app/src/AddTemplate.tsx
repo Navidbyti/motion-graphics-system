@@ -17,6 +17,7 @@ import { saveTemplate } from "./customTemplates";
 import { specForAI } from "./spec";
 import {
   GenerateError,
+  UnsupportedRequest,
   costOf,
   rateFor,
   generateTemplate,
@@ -84,6 +85,8 @@ export const AddTemplate: React.FC<{
   const [reference, setReference] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
+  /** The model's own explanation of why this graphic is not buildable. */
+  const [unsupported, setUnsupported] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   const blocked = overBudget(ai, spend);
@@ -101,6 +104,7 @@ export const AddTemplate: React.FC<{
 
   const generate = async () => {
     setProblems(null);
+    setUnsupported(null);
     setUsage(null);
     abort.current = new AbortController();
     setBusy("Writing the template…");
@@ -126,6 +130,22 @@ export const AddTemplate: React.FC<{
       saveTemplate(result.template);
       onAdded(result.template);
     } catch (e) {
+      /*
+        A refusal is an ANSWER, not a failure. It gets its own state and its own
+        wording, because "this format cannot do falling objects with masking" is
+        genuinely useful and burying it under a red error tells someone the app
+        broke when in fact they got a clear reply.
+      */
+      if (e instanceof UnsupportedRequest) {
+        if (e.usage) {
+          recordSpend(e.usage.cost);
+          setUsage(e.usage);
+        }
+        setUnsupported(e.message);
+        setBusy(null);
+        abort.current = null;
+        return;
+      }
       const err = e as GenerateError;
       if (err.usage) {
         // Charged whether or not it succeeded. A spend counter that only counts
@@ -191,9 +211,27 @@ export const AddTemplate: React.FC<{
     onAdded(result.data);
   };
 
-  /** Everything the model needs to fix it, in one paste. */
-  const repairPrompt = () =>
-    [
+  /**
+   * Everything the model needs to fix it, in one paste.
+   *
+   * When there is no template — the request failed before producing one, which
+   * is what a bad key or a retired model looks like — the code block is left
+   * out entirely. A fix-it message wrapped around an empty ```json``` block
+   * reads as if the app lost the work, and pasting it into a chat gets a
+   * confused answer about nothing.
+   */
+  const repairPrompt = () => {
+    const body = extractJson(text);
+    if (!body) {
+      return [
+        "I asked for a template and got this instead:",
+        "",
+        ...(problems ?? []).map((p) => `- ${p.where}: ${p.what}`),
+        "",
+        "Nothing was produced, so there is nothing to fix yet.",
+      ].join("\n");
+    }
+    return [
       "The template you gave me was rejected. Fix these problems and return the",
       "complete corrected JSON, nothing else:",
       "",
@@ -202,9 +240,10 @@ export const AddTemplate: React.FC<{
       "Here is the template you gave me:",
       "",
       "```json",
-      extractJson(text),
+      body,
       "```",
     ].join("\n");
+  };
 
   return (
     <main className="docs">
@@ -280,6 +319,18 @@ export const AddTemplate: React.FC<{
                 </button>
               ) : null}
             </div>
+
+            {unsupported ? (
+              <div className="add-unsupported">
+                <strong>That one can&apos;t be built yet</strong>
+                <p className="small">{unsupported}</p>
+                <p className="muted small">
+                  Not a failure — it looked at what the format can do and said so
+                  rather than faking it. Try describing a simpler version, or ask
+                  for the parts it can do.
+                </p>
+              </div>
+            ) : null}
 
             {blocked ? (
               <p className="error small">

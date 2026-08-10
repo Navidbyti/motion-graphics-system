@@ -275,6 +275,14 @@ export const ENTRANCES = [
   "fadeUp",
   "scaleIn",
   "wipeUp",
+  /*
+    Horizontal wipes. `wipeUp` existed and these did not, which is backwards
+    for this library: left-to-right is THE gesture for anything on a time axis,
+    and a model asked for a chart building left to right reached for
+    `wipeRight` and was rejected for using the obvious word.
+  */
+  "wipeRight",
+  "wipeLeft",
   "typewriter",
 ] as const;
 

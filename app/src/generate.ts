@@ -264,6 +264,57 @@ const callGemini = async (
   };
 };
 
+/**
+ * The model saying "this format cannot do that" — which is a correct answer.
+ *
+ * The spec asks for exactly this rather than a faked approximation, and the
+ * first version of the loop then treated the reply as a malformed template:
+ * three paid attempts, then a discriminator error about a layer that was never
+ * meant to exist. Asking for a refusal and not handling it is worse than not
+ * asking, because the useful sentence is right there and gets buried.
+ */
+export class UnsupportedRequest extends Error {
+  usage: Usage | null;
+  constructor(message: string, usage: Usage | null) {
+    super(message);
+    this.usage = usage;
+  }
+}
+
+/**
+ * Spot a refusal however it is spelled.
+ *
+ * responseMimeType forces a JSON object, so a refusal arrives as one — and the
+ * model picks its own key for it. Checking a couple of likely names beats
+ * demanding a protocol it has to remember, and anything with no `layers` is not
+ * a template whatever else it contains.
+ */
+const refusalIn = (parsed: unknown): string | null => {
+  if (!parsed || typeof parsed !== "object") return null;
+  const o = parsed as Record<string, unknown>;
+
+  /*
+    "Has a layers array" is not the test — the real refusal arrived carrying
+    `"layers": [{}]`, a placeholder alongside the explanation, and a check for
+    length alone read that as a template and went off to repair it.
+
+    A layer without a `type` cannot be a layer, so the question is whether ANY
+    entry looks real. An array of empty objects is decoration around a sentence.
+  */
+  const layers = Array.isArray(o.layers) ? o.layers : [];
+  const hasRealLayer = layers.some(
+    (l) => l && typeof l === "object" && typeof (l as Record<string, unknown>).type === "string",
+  );
+  if (hasRealLayer) return null;
+
+  for (const key of ["unsupported", "error", "message", "reason", "explanation"]) {
+    if (typeof o[key] === "string" && (o[key] as string).length > 12) {
+      return o[key] as string;
+    }
+  }
+  return null;
+};
+
 export class GenerateError extends Error {
   problems: Problem[];
   /** The last thing the model produced — usually close, and worth keeping. */
@@ -493,6 +544,9 @@ export const reviseTemplate = async ({
       usage,
     });
   }
+
+  const revisionRefusal = refusalIn(parsed);
+  if (revisionRefusal) throw new UnsupportedRequest(revisionRefusal, usage);
 
   const verdict = validate(parsed);
   if (!verdict.ok) {
