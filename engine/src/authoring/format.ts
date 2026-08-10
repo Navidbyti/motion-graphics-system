@@ -32,6 +32,7 @@
 
 import { z } from "zod";
 import { zColor } from "@remotion/zod-types";
+import { ICON_NAMES } from "./icons";
 
 /**
  * Bumped only when an OLD file would render WRONG under new code.
@@ -475,6 +476,28 @@ const layerVariants = z.discriminatedUnion("type", [
 
   z.object({
     ...layerBase,
+    type: z.literal("icon"),
+    /**
+     * A name from the bundled set — see ICON_NAMES.
+     *
+     * Bundled rather than fetched: the render contract forbids network calls,
+     * and an icon that sometimes 404s is worse than one that does not exist.
+     * It also means nobody has to go hunting for a PNG that turns out to block
+     * hotlinking, which is exactly how the last attempt at a coin failed.
+     */
+    name: z.string().min(1).max(40),
+    /**
+     * Brand marks default to their OWN official colour — a grey Bitcoin logo
+     * is not the Bitcoin logo. Outline glyphs default to the brand's text
+     * colour, because they are punctuation rather than identity.
+     */
+    color: colorValue.optional(),
+    /** Outline weight, for glyphs. Brand marks are solid and ignore it. */
+    strokeWidth: z.number().min(0.5).max(4).default(2),
+  }),
+
+  z.object({
+    ...layerBase,
     type: z.literal("logo"),
     /** Follows the brand the editor picked; nothing to configure. */
     tint: colorValue.optional(),
@@ -790,6 +813,22 @@ export const templateFileSchema = z
           code: z.ZodIssueCode.custom,
           path: ["layers", i, "box"],
           message: "a chart panel needs both `w` and `h` — it cannot size to its contents",
+        });
+      }
+
+      /*
+        An icon name that is not in the bundled set draws nothing at all. The
+        model has no way to know the list without being told, so the error names
+        it — that is what makes one repair attempt enough.
+      */
+      if (layer.type === "icon" && !ICON_NAMES.includes(layer.name)) {
+        const near = ICON_NAMES.filter((n) => n.includes(layer.name) || layer.name.includes(n));
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["layers", i, "name"],
+          message: near.length
+            ? `no icon called "${layer.name}". Did you mean ${near.slice(0, 4).join(", ")}?`
+            : `no icon called "${layer.name}". Available: ${ICON_NAMES.join(", ")}`,
         });
       }
 

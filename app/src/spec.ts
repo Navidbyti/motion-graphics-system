@@ -26,6 +26,7 @@ import {
   TYPE_SIZES,
   WEIGHTS,
 } from "@engine/authoring/format";
+import { ICON_NAMES } from "@engine/authoring/icons";
 import {
   exampleChartJson,
   exampleMacdJson,
@@ -99,7 +100,9 @@ Every field has \`key\`, \`label\`, an optional \`help\`, and a \`type\`:
 - \`toggle\` — \`default\` true/false
 - \`color\` — optional \`default\`; **omit it so the colour follows the brand**
 - \`choice\` — \`options\`: [{ "value", "label" }], and a \`default\` that is one of them
-- \`image\` — the user supplies the picture; you cannot ship one
+- \`image\` — the user supplies the picture; you cannot ship one. **For logos,
+  coins and symbols use an \`icon\` layer instead** — those are bundled and
+  always render
 - \`bars\` — candles (open/high/low/close). Ship 8–12 rows as a sample, or **40+
   if anything uses a \`macd\` layer or a long \`overlays\` period**; the user
   fetches real prices or pastes them from a spreadsheet
@@ -221,6 +224,23 @@ following the same path, and the keyframe's x/y becomes a DISTANCE:
 \`\`\`
 { "id": "photo", "type": "image", "src": "{{photo}}", "fit": "cover" }
 \`\`\`
+
+### type: "icon"
+\`\`\`
+{ "id": "coin", "type": "icon", "name": "bitcoin",
+  "box": { "x": 50, "y": 42, "w": 30, "h": 30, "anchor": "center" } }
+\`\`\`
+**Prefer this over an \`image\` field for any logo, coin, currency or symbol.**
+The marks are bundled with the app, so they always render — an image URL has to
+be found by the user and many hosts block it at render time.
+
+- Brand marks keep their **own official colour** unless you set \`color\`. Leave
+  it alone: a grey Bitcoin logo is not the Bitcoin logo.
+- Outline glyphs take \`color\` (default: the brand's text colour) and
+  \`strokeWidth\`.
+- \`w\` and \`h\` should match — they are square.
+
+Available: ${ICON_NAMES.join(", ")}
 
 ### type: "logo"
 Draws the brand's logo. Nothing to configure.

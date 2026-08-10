@@ -35,6 +35,7 @@ import { AnnotationLayer } from "../charting/AnnotationLayer";
 import { annotationPrices, type Annotation } from "../charting/annotations";
 import { priceScale, type Bar } from "../charting/geometry";
 import { indicator } from "../charting/indicators";
+import { BRAND_ICONS, GLYPH_ICONS } from "./icons";
 import type { TemplateFile, TemplateLayer } from "./format";
 
 export type CustomTemplateProps = {
@@ -752,6 +753,47 @@ const Layer: React.FC<{
             px={px}
           decimals={layer.decimals}
         />
+      </div>
+    );
+  }
+
+  if (layer.type === "icon") {
+    const brandMark = BRAND_ICONS[layer.name];
+    const glyph = GLYPH_ICONS[layer.name];
+    /*
+      An unknown name draws nothing rather than a "missing" box. The paste step
+      already rejects names outside the set, so reaching this means the set
+      shrank under a template that used to work — and a blank is a recoverable
+      graphic where a red placeholder shipped into someone's video is not.
+    */
+    if (!brandMark && !glyph) return null;
+
+    const tint = resolveColor(layer.color, palette, values);
+
+    return (
+      <div style={frameStyle}>
+        <svg
+          viewBox="0 0 24 24"
+          style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}
+        >
+          {brandMark ? (
+            /*
+              Brand marks keep their OWN colour unless told otherwise. A grey
+              Bitcoin logo is not the Bitcoin logo, and the whole reason to
+              reach for a brand mark is that it is instantly recognisable.
+            */
+            <path d={brandMark.path} fill={tint ?? brandMark.hex} />
+          ) : (
+            <g
+              fill="none"
+              stroke={tint ?? palette.textPrimary}
+              strokeWidth={layer.strokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              dangerouslySetInnerHTML={{ __html: glyph }}
+            />
+          )}
+        </svg>
       </div>
     );
   }

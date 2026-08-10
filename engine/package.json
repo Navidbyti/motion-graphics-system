@@ -21,7 +21,9 @@
     "@types/react": "19.2.7",
     "@types/web": "0.0.166",
     "eslint": "9.19.0",
+    "lucide-static": "^1.31.0",
     "prettier": "3.8.1",
+    "simple-icons": "^16.28.0",
     "typescript": "5.9.3"
   },
   "scripts": {
@@ -31,7 +33,8 @@
     "lint": "eslint src && tsc",
     "render:overlay": "remotion render --image-format=png --pixel-format=yuva444p10le --codec=prores --prores-profile=4444",
     "render:preview": "remotion render --codec=h264",
-    "check": "tsc --noEmit && eslint src"
+    "check": "tsc --noEmit && eslint src",
+    "icons": "node scripts/build-icons.mjs"
   },
   "sideEffects": [
     "*.css"
