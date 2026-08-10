@@ -283,6 +283,14 @@ export const ENTRANCES = [
   */
   "wipeRight",
   "wipeLeft",
+  /*
+    `draw` means "let this thing draw itself". Charts already do, via their own
+    drawSeconds, and a model asked for a chart drawing in reaches for this word
+    every time — it wrote "draw" after being rejected for "wipeRight". Accepting
+    the obvious word costs nothing; on a layer with no self-drawing it simply
+    behaves as no entrance.
+  */
+  "draw",
   "typewriter",
 ] as const;
 
@@ -467,6 +475,11 @@ const layerVariants = z.discriminatedUnion("type", [
     /** Bars between the two lines. This is the thing people look at. */
     showHistogram: z.boolean().default(true),
     drawSeconds: z.number().min(0.1).max(20).default(1.6),
+    /**
+     * `grow` raises each histogram bar out of the zero line as the sweep
+     * reaches it, left to right, rather than uncovering finished bars.
+     */
+    reveal: z.enum(["wipe", "grow"]).default("wipe"),
   }),
 
   z.object({
@@ -507,6 +520,16 @@ const layerVariants = z.discriminatedUnion("type", [
     decimals: z.number().int().min(0).max(8).default(2),
     /** Seconds the price takes to draw in. */
     drawSeconds: z.number().min(0.1).max(20).default(1.6),
+
+    /**
+     * How the price arrives.
+     *
+     * `wipe` sweeps a hard edge across, which is fast and reads as a reveal.
+     * `grow` gives every candle its own short entrance as the sweep reaches it,
+     * so the chart builds candle by candle instead of being uncovered — softer,
+     * and the thing people mean by "animate it candle by candle".
+     */
+    reveal: z.enum(["wipe", "grow"]).default("wipe"),
 
     /**
      * Grey candles let something drawn on top be the subject.

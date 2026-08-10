@@ -127,6 +127,13 @@ export const Plot: React.FC<{
   priceOpacity?: number;
   overlays?: PlotOverlay[];
   shading?: PlotShading;
+  /**
+   * `wipe` uncovers finished candles behind a moving edge. `grow` gives each
+   * candle its own short entrance as the sweep reaches it, so the chart builds
+   * rather than being revealed — which is what "animate it candle by candle"
+   * means, and a hard edge sweeping across never will be.
+   */
+  reveal?: "wipe" | "grow";
   /** Stroke width in composition pixels — already through `px()`. */
   stroke: number;
   /*
@@ -147,6 +154,7 @@ export const Plot: React.FC<{
   priceOpacity = 1,
   overlays = [],
   shading,
+  reveal = "wipe",
 }) => {
   const wipe = Math.max(0, Math.min(1, progress));
 
@@ -155,8 +163,8 @@ export const Plot: React.FC<{
     still read as up and down at phone size, and dark enough that a coloured
     line over them is unambiguously the subject.
   */
-  const up = grayscale ? "#586069" : palette.positive;
-  const down = grayscale ? "#414A54" : palette.negative;
+  const upColor = grayscale ? "#586069" : palette.positive;
+  const downColor = grayscale ? "#414A54" : palette.negative;
 
   const line =
     kind === "line" && bars.length
@@ -165,7 +173,16 @@ export const Plot: React.FC<{
           .join(" ")
       : "";
 
-  const paths = kind === "candles" ? candlePaths(bars, scale) : null;
+  /*
+    Combined paths for the wipe, individual elements for the grow.
+
+    Four paths is the right answer at 400 candles — 1,600 nodes composited per
+    frame otherwise — and it is the wrong answer when each candle needs its own
+    progress, because a path cannot animate a piece of itself. So the expensive
+    shape is opt-in and only paid for by templates that ask for it.
+  */
+  const paths = kind === "candles" && reveal === "wipe" ? candlePaths(bars, scale) : null;
+  const grow = kind === "candles" && reveal === "grow";
 
   return (
     <svg
@@ -186,25 +203,71 @@ export const Plot: React.FC<{
         </clipPath>
       </defs>
 
+      {grow ? (
+        <g opacity={priceOpacity}>
+          {bars.map((bar, i) => {
+            /*
+              Each candle's own progress, from where the sweep has reached.
+              Divided by the bar count so the last candle finishes exactly as
+              the sweep does, and given a short tail of its own so it grows
+              rather than appearing.
+            */
+            const reached = wipe * bars.length;
+            const t = Math.max(0, Math.min(1, reached - i));
+            if (t <= 0) return null;
+
+            const cx = indexToSvgX(i, scale);
+            const bodyW = Math.max(slotWidth(scale) * 0.62, 0.02);
+            const up = bar.close >= bar.open;
+            const top = priceToSvgY(Math.max(bar.open, bar.close), scale);
+            const bottom = priceToSvgY(Math.min(bar.open, bar.close), scale);
+            const midY = (top + bottom) / 2;
+            const h = Math.max(bottom - top, 0.15);
+
+            return (
+              <g key={i} opacity={t}>
+                <line
+                  x1={cx}
+                  y1={midY + (priceToSvgY(bar.high, scale) - midY) * t}
+                  x2={cx}
+                  y2={midY + (priceToSvgY(bar.low, scale) - midY) * t}
+                  stroke={up ? upColor : downColor}
+                  strokeWidth={stroke}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Grows out of its own middle, the way a candle forms. */}
+                <rect
+                  x={cx - bodyW / 2}
+                  y={midY - (h * t) / 2}
+                  width={bodyW}
+                  height={h * t}
+                  fill={up ? upColor : downColor}
+                />
+              </g>
+            );
+          })}
+        </g>
+      ) : null}
+
       <g clipPath="url(#plot-wipe)" opacity={priceOpacity}>
         {paths ? (
           <>
             <path
               d={paths.upWick}
-              stroke={up}
+              stroke={upColor}
               strokeWidth={stroke}
               vectorEffect="non-scaling-stroke"
               fill="none"
             />
             <path
               d={paths.downWick}
-              stroke={down}
+              stroke={downColor}
               strokeWidth={stroke}
               vectorEffect="non-scaling-stroke"
               fill="none"
             />
-            <path d={paths.upBody} fill={up} />
-            <path d={paths.downBody} fill={down} />
+            <path d={paths.upBody} fill={upColor} />
+            <path d={paths.downBody} fill={downColor} />
           </>
         ) : (
           <polyline

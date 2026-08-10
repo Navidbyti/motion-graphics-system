@@ -226,8 +226,13 @@ Draws the brand's logo. Nothing to configure.
 - \`decimals\` is how many places any printed price shows. Four for forex, two
   for most things.
 - **A chart must have both \`w\` and \`h\`** — it cannot size to its contents.
-- Use \`"in": "none"\` — the chart has its own draw-in, and an entrance on top
-  of it fights the reveal.
+- Use \`"in": "none"\` or \`"in": "draw"\` — the chart has its own draw-in, and a
+  layer entrance on top of it fights the reveal.
+- \`"reveal": "grow"\` builds it **candle by candle** — each candle grows in as
+  the sweep reaches it. \`"wipe"\` (the default) uncovers finished candles behind
+  a moving edge. Use \`grow\` whenever someone asks for a smooth or
+  candle-by-candle build. The \`macd\` layer takes the same option, where it
+  raises each histogram bar out of the zero line left to right.
 
 ### type: "macd"
 The lower panel every charting app has: the MACD line, the signal line, and the

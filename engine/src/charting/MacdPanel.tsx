@@ -31,6 +31,8 @@ export const MacdPanel: React.FC<{
   progress: number;
   stroke: number;
   showHistogram: boolean;
+  /** `grow` raises each bar out of the zero line as the sweep reaches it. */
+  reveal?: "wipe" | "grow";
 }> = ({
   bars,
   scale,
@@ -43,6 +45,7 @@ export const MacdPanel: React.FC<{
   progress,
   stroke,
   showHistogram,
+  reveal = "wipe",
 }) => {
   if (bars.length < 3) return null;
 
@@ -78,9 +81,21 @@ export const MacdPanel: React.FC<{
   let down = "";
   if (showHistogram) {
     histogram.forEach((v, i) => {
+      /*
+        Each bar rises out of the zero line as the sweep reaches it, rather than
+        being uncovered at full height. That is what "rise and fall from the
+        centre, left to right" describes, and a clip can never produce it: a
+        clip reveals a finished bar, it does not grow one.
+      */
+      const t =
+        reveal === "grow" ? Math.max(0, Math.min(1, wipe * histogram.length - i)) : 1;
+      if (t <= 0) return;
+
       const cx = indexToSvgX(i, scale);
-      const top = Math.min(y(v), 50);
-      const height = Math.max(Math.abs(y(v) - 50), 0.15);
+      const full = y(v) - 50;
+      const signed = full * t;
+      const top = Math.min(50 + signed, 50);
+      const height = Math.max(Math.abs(signed), 0.15);
       const rect = `M ${cx - barW / 2} ${top} h ${barW} v ${height} h ${-barW} Z `;
       if (v >= 0) up += rect;
       else down += rect;
@@ -111,8 +126,16 @@ export const MacdPanel: React.FC<{
         vectorEffect="non-scaling-stroke"
       />
 
+      {/* Grown bars carry their own progress and must not be clipped as well. */}
+      {showHistogram && reveal === "grow" ? (
+        <>
+          <path d={up} fill={palette.positive} fillOpacity={0.85} />
+          <path d={down} fill={palette.negative} fillOpacity={0.85} />
+        </>
+      ) : null}
+
       <g clipPath="url(#macd-wipe)">
-        {showHistogram ? (
+        {showHistogram && reveal === "wipe" ? (
           <>
             <path d={up} fill={palette.positive} fillOpacity={0.85} />
             <path d={down} fill={palette.negative} fillOpacity={0.85} />

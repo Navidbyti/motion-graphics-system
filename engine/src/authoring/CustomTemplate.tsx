@@ -545,6 +545,7 @@ const Layer: React.FC<{
           lineColor={resolveColor(layer.lineColor, palette, values) ?? palette.primary}
           signalColor={resolveColor(layer.signalColor, palette, values) ?? palette.accent}
           showHistogram={layer.showHistogram}
+          reveal={layer.reveal}
           stroke={px(1.4)}
           progress={interpolate(frame, [0, drawFrames], [0, 1], {
             extrapolateLeft: "clamp",
@@ -663,6 +664,7 @@ const Layer: React.FC<{
           palette={palette}
           progress={drawn}
           stroke={px(1.4)}
+          reveal={layer.reveal}
           grayscale={layer.candleStyle === "grayscale"}
           priceOpacity={priceOpacity}
           overlays={overlays}
