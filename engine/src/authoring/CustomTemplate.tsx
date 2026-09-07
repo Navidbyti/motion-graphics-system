@@ -747,8 +747,10 @@ const Layer: React.FC<{
                       left: 0,
                       right: 0,
                       bottom: `${y}%`,
-                      borderTop: `${px(1.5)}px dotted ${tone}`,
-                      opacity: 0.7,
+                      // A hairline dotted rule vanished against dark footage;
+                      // this reads at reel size, as the app's own does.
+                      borderTop: `${px(2.5)}px dashed ${tone}`,
+                      opacity: 1,
                       pointerEvents: "none",
                     }}
                   />
