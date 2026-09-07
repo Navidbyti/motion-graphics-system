@@ -275,6 +275,16 @@ Draws the brand's logo. Nothing to configure.
   a moving edge. Use \`grow\` whenever someone asks for a smooth or
   candle-by-candle build. The \`macd\` layer takes the same option, where it
   raises each histogram bar out of the zero line left to right.
+- \`"axis": true\` adds a right-hand price axis; \`"priceTag": true\` tags the
+  last close on it in the candle's colour. Use both when the chart should
+  read like a screenshot of a charting app.
+- \`warmupBars\` is how many leading rows feed the averages **without being
+  drawn**. An SMA 100 is only right once it has seen 100 candles, so a chart
+  that must match a real one carries 100 extra rows of history here.
+- \`beats\` fixes when each annotation appears:
+  \`[{ "target": "<annotation id>", "at": 0.3, "duration": 0.4, "effect": "draw" }]\`
+  with \`effect\` one of \`draw\`, \`fade\`, \`pop\`, \`wipe\`. Left out, the
+  annotations stagger in on their own once the price has drawn.
 
 ### type: "macd"
 The lower panel every charting app has: the MACD line, the signal line, and the
@@ -351,8 +361,8 @@ that matters most in the graphic, not for everything.
 - **Give text room.** Long copy at \`hero\` size overflows. \`hero\` is for two or
   three words.
 - **Backgrounds first.** A card behind text is a shape layer earlier in the array.
-- **It must work in three shapes** — 9:16, 1:1 and 16:9. Percentages and anchors
-  do that for you; fixed pixel sizes do not.
+- **It must work in four shapes** — 9:16, 1:1, 16:9 and the 5:4 reel cutaway.
+  Percentages and anchors do that for you; fixed pixel sizes do not.
 - **Assume the words change.** The user will type something longer than your
   example.
 

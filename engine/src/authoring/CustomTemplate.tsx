@@ -33,7 +33,7 @@ import { Plot } from "../charting/Plot";
 import { MacdPanel } from "../charting/MacdPanel";
 import { AnnotationLayer } from "../charting/AnnotationLayer";
 import { annotationPrices, type Annotation } from "../charting/annotations";
-import { priceScale, type Bar } from "../charting/geometry";
+import { priceScale, priceToPct, type Bar } from "../charting/geometry";
 import { indicator } from "../charting/indicators";
 import { resolveIcon } from "./iconLookup";
 import type { TemplateFile, TemplateLayer } from "./format";
@@ -648,8 +648,16 @@ const Layer: React.FC<{
       ? (rawAnnotations as Annotation[])
       : [];
 
+    /*
+      Warm-up bars feed the averages and are never drawn. The scale and the
+      plot see only what is shown; the indicators see everything, then lose
+      their warm-up so they line up bar-for-bar with the candles.
+    */
+    const warm = Math.min(layer.warmupBars, Math.max(0, bars.length - 2));
+    const shown = bars.slice(warm);
+
     const scale = priceScale(
-      bars,
+      shown,
       annotationPrices(annotations),
       0.08,
       layer.futureBars,
@@ -671,7 +679,7 @@ const Layer: React.FC<{
       const start = sec(o.at, fps);
       const span = Math.max(sec(o.drawSeconds, fps), 1);
       return {
-        values: indicator(o.kind, bars, o.period),
+        values: indicator(o.kind, bars, o.period).slice(warm),
         color: resolveColor(o.color, palette, values) ?? palette.primary,
         width: px(o.width),
         progress: interpolate(frame, [start, start + span], [0, 1], {
@@ -713,7 +721,7 @@ const Layer: React.FC<{
       <div style={frameStyle}>
         <Plot
           kind={layer.kind}
-          bars={bars}
+          bars={shown}
           scale={scale}
           palette={palette}
           progress={drawn}
@@ -724,6 +732,50 @@ const Layer: React.FC<{
           overlays={overlays}
           shading={shading}
         />
+        {/* The last close, dotted across and tagged in the candle's colour. */}
+        {layer.priceTag && shown.length
+          ? (() => {
+              const last = shown[shown.length - 1];
+              const up = last.close >= last.open;
+              const tone = up ? palette.positive : palette.negative;
+              const y = priceToPct(last.close, scale);
+              return (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      bottom: `${y}%`,
+                      borderTop: `${px(1.5)}px dotted ${tone}`,
+                      opacity: 0.7,
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      bottom: `${y}%`,
+                      transform: "translateY(50%)",
+                      background: tone,
+                      color: palette.paper,
+                      padding: `${px(3)}px ${px(9)}px`,
+                      borderRadius: px(5),
+                      fontFamily: brand.font.numeric,
+                      fontSize: px(22),
+                      fontWeight: 700,
+                      fontVariantNumeric: "tabular-nums",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {last.close.toFixed(layer.decimals)}
+                  </div>
+                </>
+              );
+            })()
+          : null}
+
         {/*
           A sibling, positioned over the same box — see the note in Plot. Also
           second in the DOM so the shapes sit above the price rather than under
@@ -739,12 +791,15 @@ const Layer: React.FC<{
               reading people expect: here is what happened, now here is what to
               notice about it.
             */
-            beats={annotations.map((a, n) => ({
-              target: a.id,
-              at: n * 0.35,
-              duration: 0.6,
-              effect: "draw" as const,
-            }))}
+            beats={
+              layer.beats ??
+              annotations.map((a, n) => ({
+                target: a.id,
+                at: n * 0.35,
+                duration: 0.6,
+                effect: "draw" as const,
+              }))
+            }
             scale={scale}
             palette={palette}
             frame={frame}
@@ -752,7 +807,60 @@ const Layer: React.FC<{
             chartReadyFrame={drawFrames}
             px={px}
           decimals={layer.decimals}
+          fontFamily={brand.font.numeric}
         />
+
+        {/*
+          The axis, in HTML for the same reason the annotation labels are: the
+          plot box is stretched to the output size and SVG glyphs would stretch
+          with it. Ticks land on round numbers at a step chosen from the range,
+          which is what makes it read as an axis rather than as six arbitrary
+          prices — 220, 240, 260 rather than 217.3, 238.9, 260.5.
+        */}
+        {layer.axis
+          ? (() => {
+              const span = scale.hi - scale.lo;
+              const rawStep = span / 6;
+              const mag = 10 ** Math.floor(Math.log10(rawStep));
+              const step =
+                [1, 2, 2.5, 5, 10].map((m) => m * mag).find((c) => c >= rawStep) ?? mag * 10;
+              /*
+                A tick under a price tag is a smudge of two numbers. The tags
+                (zone edges, levels, the last close) win, the way they do on
+                any charting app, and the tick nearest each one steps aside.
+              */
+              const taken = [
+                ...annotationPrices(annotations),
+                ...(layer.priceTag && shown.length ? [shown[shown.length - 1].close] : []),
+              ].map((v) => priceToPct(v, scale));
+              const TAG_PCT = 3.2;
+              const ticks: number[] = [];
+              for (let v = Math.ceil(scale.lo / step) * step; v <= scale.hi; v += step) {
+                const y = priceToPct(v, scale);
+                if (taken.some((t) => Math.abs(t - y) < TAG_PCT)) continue;
+                ticks.push(Number(v.toFixed(8)));
+              }
+              return ticks.map((v) => (
+                <div
+                  key={`tick-${v}`}
+                  style={{
+                    position: "absolute",
+                    right: px(4),
+                    bottom: `${priceToPct(v, scale)}%`,
+                    transform: "translateY(50%)",
+                    color: palette.textSecondary,
+                    fontFamily: brand.font.numeric,
+                    fontSize: px(22),
+                    fontVariantNumeric: "tabular-nums",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {v.toFixed(layer.decimals)}
+                </div>
+              ));
+            })()
+          : null}
+
       </div>
     );
   }

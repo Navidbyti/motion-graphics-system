@@ -51,7 +51,7 @@ import {
   candleChartSeconds,
 } from "./templates/CandleChart/schema";
 
-export const FORMATS = ["vertical", "square", "landscape"] as const;
+export const FORMATS = ["vertical", "square", "landscape", "reel"] as const;
 export type FormatName = (typeof FORMATS)[number];
 
 export type TemplateEntry<S extends z.ZodTypeAny = z.ZodTypeAny> = {

@@ -32,6 +32,7 @@
 
 import { z } from "zod";
 import { zColor } from "@remotion/zod-types";
+import { annotationSchema, beatSchema } from "../charting/annotations";
 
 /**
  * Bumped only when an OLD file would render WRONG under new code.
@@ -210,11 +211,15 @@ export const fieldSchema = z.discriminatedUnion("type", [
     ...fieldBase,
     type: z.literal("annotations"),
     /**
-     * Zones, levels, trendlines and the rest. Always starts empty — the shapes
-     * belong to the graphic being made, not to the template, and a template
-     * that ships its own would put someone else's analysis on every chart.
+     * Zones, levels, trendlines and the rest.
+     *
+     * Usually empty — the shapes belong to the graphic being made. But a
+     * template built for ONE specific chart (a watchlist cutaway, frozen at a
+     * date, with the analyst's own zones) is exactly a template whose zones
+     * are the point, so they may ship. Forbidding that forced the analysis to
+     * be re-drawn by hand on every machine the file was opened on.
      */
-    default: z.array(z.unknown()).max(0).default([]),
+    default: z.array(annotationSchema).default([]),
   }),
 ]);
 
@@ -575,6 +580,29 @@ const layerVariants = z.discriminatedUnion("type", [
      * and the thing people mean by "animate it candle by candle".
      */
     reveal: z.enum(["wipe", "grow"]).default("wipe"),
+
+    /**
+     * Leading bars used for the averages but never drawn.
+     *
+     * A 100-period SMA needs 100 bars before the first one it is drawn on, or
+     * its left end is a partial average that drifts from what any charting app
+     * shows. Feeding the extra history here is what makes a reproduced chart's
+     * lines match the original end to end rather than only at the last bar.
+     */
+    warmupBars: z.number().int().min(0).max(400).default(0),
+
+    /**
+     * When each annotation appears. Omitted, shapes stagger in array order
+     * once the price has drawn. Given, the template controls every entrance —
+     * zones present from the first frame, the one line that matters drawing
+     * on cue.
+     */
+    beats: z.array(beatSchema).max(40).optional(),
+
+    /** A right-hand price axis, so the numbers read like a real chart. */
+    axis: z.boolean().default(false),
+    /** The last close, tagged on the axis in the candle's colour. */
+    priceTag: z.boolean().default(false),
 
     /**
      * Grey candles let something drawn on top be the subject.

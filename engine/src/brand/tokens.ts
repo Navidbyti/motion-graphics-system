@@ -109,11 +109,17 @@ export const logo = {
   aspect: 4,
 } as const;
 
-/** Canonical output formats. Templates must render correctly in all three. */
+/** Canonical output formats. Templates must render correctly in all four. */
 export const formats = {
   vertical: { width: 1080, height: 1920 },
   square: { width: 1080, height: 1080 },
   landscape: { width: 1920, height: 1080 },
+  /*
+    5:4. A chart cutaway that lives inside a 9:16 reel — wider than square so
+    the price action has room, narrower than 16:9 so it is not a letterboxed
+    sliver. 1080 tall keeps px() at scale 1 with the others.
+  */
+  reel: { width: 1350, height: 1080 },
 } as const;
 
 export type FormatName = keyof typeof formats;

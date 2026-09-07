@@ -47,6 +47,11 @@ export const ASSETS = [
   { id: "AAPL", label: "Apple", symbol: "AAPL", decimals: 2 },
   { id: "TSLA", label: "Tesla", symbol: "TSLA", decimals: 2 },
   { id: "NVDA", label: "NVIDIA", symbol: "NVDA", decimals: 2 },
+  // Billionaire Signal watchlist W1.
+  { id: "COHR", label: "Coherent", symbol: "COHR", decimals: 2 },
+  { id: "MOD", label: "Modine Manufacturing", symbol: "MOD", decimals: 2 },
+  { id: "DG", label: "Dollar General", symbol: "DG", decimals: 2 },
+  { id: "TMDX", label: "TransMedics", symbol: "TMDX", decimals: 2 },
 ];
 
 /** Only intervals Yahoo actually serves — 4h isn't one of them. */

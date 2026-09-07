@@ -13,6 +13,7 @@
  */
 
 import type { BrandPalette } from "../brand/brands";
+import { readableOn } from "../brand/contrast";
 import {
   type Annotation,
   type Beat,
@@ -41,6 +42,8 @@ type Props = {
   /** Scales stroke widths and type with the composition. */
   px: (n: number) => number;
   decimals: number;
+  /** The face the tags are set in. Unset, they fell back to the browser serif. */
+  fontFamily?: string;
 };
 
 const DASH: Record<string, string | undefined> = {
@@ -68,6 +71,7 @@ export const AnnotationLayer: React.FC<Props> = ({
   chartReadyFrame,
   px,
   decimals,
+  fontFamily,
 }) => {
   const format = (v: number) => v.toFixed(decimals);
   // Thin enough to read as annotation rather than as part of the chart.
@@ -675,11 +679,14 @@ export const AnnotationLayer: React.FC<Props> = ({
           <div
             style={{
               background: l.color,
-              color: palette.paper,
+              // Light text on a yellow tag was unreadable; pick whichever of
+              // the brand's two text colours actually contrasts with the tag.
+              color: readableOn(l.color, palette.paper, palette.ink),
               padding: `${px(4)}px ${px(10)}px`,
               borderRadius: px(6),
               fontSize: px(24),
               fontWeight: 600,
+              fontFamily,
               letterSpacing: px(-0.4),
               whiteSpace: "nowrap",
               fontVariantNumeric: "tabular-nums",

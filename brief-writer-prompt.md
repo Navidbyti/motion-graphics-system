@@ -48,7 +48,8 @@ Motion beyond simple arrivals:
 Colours are brand roles, not hex: primary, accent, positive, negative, ink,
 surface, paper, textPrimary, textSecondary. The tool applies the right brand.
 
-Everything renders on a transparent background, in 9:16, 1:1 and 16:9.
+Everything renders on a transparent background, in 9:16, 1:1, 16:9, and a 5:4
+"reel" shape for a chart cutaway that sits inside a vertical video.
 
 ## What it cannot build
 

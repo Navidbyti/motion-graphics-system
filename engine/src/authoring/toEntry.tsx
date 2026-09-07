@@ -26,7 +26,7 @@ export type CustomEntry = AnyTemplateEntry & {
 export const isCustomEntry = (entry: AnyTemplateEntry): entry is CustomEntry =>
   (entry as CustomEntry).custom === true;
 
-const ALL_FORMATS: readonly FormatName[] = ["vertical", "square", "landscape"];
+const ALL_FORMATS: readonly FormatName[] = ["vertical", "square", "landscape", "reel"];
 
 export const customToEntry = (file: TemplateFile): CustomEntry => {
   /*
