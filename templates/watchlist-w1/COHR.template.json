@@ -9,7 +9,7 @@
     "cohr",
     "cutaway"
   ],
-  "seconds": 2,
+  "seconds": 4.2,
   "fields": [
     {
       "key": "header",
@@ -1809,7 +1809,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 384,
-          "to": 391
+          "to": 391,
+          "tag": "range"
         },
         {
           "id": "supply-sma",
@@ -1817,7 +1818,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 303,
-          "to": 308
+          "to": 308,
+          "tag": "range"
         },
         {
           "id": "demand-1",
@@ -1825,7 +1827,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 247,
-          "to": 256
+          "to": 256,
+          "tag": "range"
         },
         {
           "id": "demand-2",
@@ -1833,7 +1836,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 219,
-          "to": 229
+          "to": 229,
+          "tag": "range"
         },
         {
           "id": "target",
@@ -1845,8 +1849,8 @@
             "price": 303
           },
           "b": {
-            "index": 213,
-            "price": 388
+            "index": 209,
+            "price": 385
           }
         },
         {
@@ -1856,7 +1860,8 @@
           "opacity": 1,
           "kind": "level",
           "price": 285,
-          "style": "solid"
+          "style": "solid",
+          "labelSide": "left"
         }
       ]
     }
@@ -1886,44 +1891,44 @@
       "annotations": "{{marks}}",
       "futureBars": 26,
       "decimals": 2,
-      "drawSeconds": 0.1,
-      "reveal": "wipe",
+      "drawSeconds": 1.5,
+      "reveal": "grow",
       "warmupBars": 100,
       "beats": [
         {
           "target": "supply-top",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.1,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "supply-sma",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.28,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "demand-1",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.45999999999999996,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "demand-2",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
-        },
-        {
-          "target": "target",
-          "at": 0.85,
+          "at": 0.64,
           "duration": 0.45,
-          "effect": "draw"
+          "effect": "wipe"
         },
         {
           "target": "price-to-beat",
-          "at": 0.3,
-          "duration": 0.4,
+          "at": 1.2,
+          "duration": 0.5,
+          "effect": "draw"
+        },
+        {
+          "target": "target",
+          "at": 1.9,
+          "duration": 0.5,
           "effect": "draw"
         }
       ],
@@ -1935,16 +1940,16 @@
           "kind": "sma",
           "period": 50,
           "color": "#2962FF",
-          "at": 0,
-          "drawSeconds": 0.1,
+          "at": 0.15,
+          "drawSeconds": 1.5,
           "width": 2
         },
         {
           "kind": "sma",
           "period": 100,
           "color": "#FF9800",
-          "at": 0,
-          "drawSeconds": 0.1,
+          "at": 0.3,
+          "drawSeconds": 1.5,
           "width": 2
         }
       ],

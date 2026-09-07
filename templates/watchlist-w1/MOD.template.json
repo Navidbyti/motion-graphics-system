@@ -9,7 +9,7 @@
     "mod",
     "cutaway"
   ],
-  "seconds": 2,
+  "seconds": 4.2,
   "fields": [
     {
       "key": "header",
@@ -2139,7 +2139,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 245.22,
-          "to": 255.93
+          "to": 255.93,
+          "tag": "range"
         },
         {
           "id": "supply-2",
@@ -2147,7 +2148,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 207,
-          "to": 220
+          "to": 220,
+          "tag": "range"
         },
         {
           "id": "demand-1",
@@ -2155,7 +2157,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 140,
-          "to": 154
+          "to": 154,
+          "tag": "range"
         },
         {
           "id": "price-to-beat",
@@ -2164,7 +2167,8 @@
           "opacity": 1,
           "kind": "level",
           "price": 200,
-          "style": "solid"
+          "style": "solid",
+          "labelSide": "left"
         }
       ]
     }
@@ -2194,32 +2198,32 @@
       "annotations": "{{marks}}",
       "futureBars": 14,
       "decimals": 2,
-      "drawSeconds": 0.1,
-      "reveal": "wipe",
+      "drawSeconds": 1.5,
+      "reveal": "grow",
       "warmupBars": 100,
       "beats": [
         {
           "target": "supply-1",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.1,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "supply-2",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.28,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "demand-1",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.45999999999999996,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "price-to-beat",
-          "at": 0.3,
-          "duration": 0.4,
+          "at": 1.2,
+          "duration": 0.5,
           "effect": "draw"
         }
       ],
@@ -2231,16 +2235,16 @@
           "kind": "sma",
           "period": 50,
           "color": "#2962FF",
-          "at": 0,
-          "drawSeconds": 0.1,
+          "at": 0.15,
+          "drawSeconds": 1.5,
           "width": 2
         },
         {
           "kind": "sma",
           "period": 100,
           "color": "#FF9800",
-          "at": 0,
-          "drawSeconds": 0.1,
+          "at": 0.3,
+          "drawSeconds": 1.5,
           "width": 2
         }
       ],

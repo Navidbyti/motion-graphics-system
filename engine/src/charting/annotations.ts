@@ -56,6 +56,13 @@ export const annotationSchema = z.discriminatedUnion("kind", [
     /** Limits the band horizontally; omitted means edge to edge. */
     fromIndex: z.number().optional(),
     toIndex: z.number().optional(),
+    /**
+     * How the band is named on the axis. `edges` is a tag on each boundary,
+     * the way charting apps do it. `range` is one plain line of text —
+     * "247.00 - 256.00" — in the band's colour, for a chart with several
+     * bands stacked close enough that two boxed tags each would pile up.
+     */
+    tag: z.enum(["edges", "range", "none"]).default("edges"),
   }),
 
   /** A single horizontal price line. */
@@ -64,6 +71,8 @@ export const annotationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("level"),
     price: z.number(),
     style: z.enum(["solid", "dashed", "dotted"]).default("dashed"),
+    /** The axis side its label sits on. Left keeps it clear of the zone tags. */
+    labelSide: z.enum(["left", "right"]).default("right"),
   }),
 
   /** Two-point diagonal — the trendline. */

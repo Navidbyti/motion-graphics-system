@@ -88,6 +88,10 @@ export const AnnotationLayer: React.FC<Props> = ({
     align: "left" | "right";
     /** Draws a short tick from the tag to the thing it names. */
     leader?: boolean;
+    /** Pinned to the plot's left edge rather than centred on `left`. */
+    pinLeft?: boolean;
+    /** Text in the colour, no box — for a note beside the axis, not a tag. */
+    plain?: boolean;
   }[] = [];
 
   const shapes: React.ReactNode[] = [];
@@ -144,21 +148,34 @@ export const AnnotationLayer: React.FC<Props> = ({
           reference charts everyone is used to tag the top and the bottom
           separately, each pointing at its own line.
         */
-        [
-          { price: a.to, suffix: a.label ? ` ${a.label}` : "" },
-          { price: a.from, suffix: "" },
-        ].forEach((edge, n) => {
+        if (a.tag === "range") {
           labels.push({
-            key: `${key}-edge-${n}`,
+            key: `${key}-range`,
             left: 100,
-            bottom: priceToPct(edge.price, scale),
-            text: `${format(edge.price)}${edge.suffix}`,
+            bottom: priceToPct((a.from + a.to) / 2, scale),
+            text: `${format(Math.min(a.from, a.to))} - ${format(Math.max(a.from, a.to))}${a.label ? ` ${a.label}` : ""}`,
             color: tone,
             opacity: progress,
             align: "right",
-            leader: true,
+            plain: true,
           });
-        });
+        } else if (a.tag === "edges") {
+          [
+            { price: a.to, suffix: a.label ? ` ${a.label}` : "" },
+            { price: a.from, suffix: "" },
+          ].forEach((edge, n) => {
+            labels.push({
+              key: `${key}-edge-${n}`,
+              left: 100,
+              bottom: priceToPct(edge.price, scale),
+              text: `${format(edge.price)}${edge.suffix}`,
+              color: tone,
+              opacity: progress,
+              align: "right",
+              leader: true,
+            });
+          });
+        }
         break;
       }
 
@@ -181,12 +198,13 @@ export const AnnotationLayer: React.FC<Props> = ({
         );
         labels.push({
           key: `${key}-label`,
-          left: 100,
+          left: a.labelSide === "left" ? 0 : 100,
           bottom: priceToPct(a.price, scale),
           text: a.label || format(a.price),
           color: tone,
           opacity: progress,
-          align: "right",
+          align: a.labelSide === "left" ? "left" : "right",
+          pinLeft: a.labelSide === "left",
         });
         break;
       }
@@ -650,7 +668,9 @@ export const AnnotationLayer: React.FC<Props> = ({
             bottom: `${l.bottom}%`,
             ...(l.align === "right"
               ? { right: 0, transform: "translate(0, 50%)" }
-              : {
+              : l.pinLeft
+                ? { left: 0, transform: "translate(0, 50%)" }
+                : {
                   /*
                     Clamped into the plot. An annotation whose points sit past
                     the last slot — which is what happens when new market data
@@ -677,7 +697,20 @@ export const AnnotationLayer: React.FC<Props> = ({
             <div style={{ width: px(26), height: px(2), background: l.color, opacity: 0.7 }} />
           ) : null}
           <div
-            style={{
+            style={
+              l.plain
+                ? {
+                    color: l.color,
+                    padding: `0 ${px(6)}px`,
+                    fontSize: px(22),
+                    fontWeight: 600,
+                    fontFamily,
+                    whiteSpace: "nowrap",
+                    fontVariantNumeric: "tabular-nums",
+                    // Lifts the text off busy candles behind it.
+                    textShadow: `0 0 ${px(6)}px ${palette.paper}, 0 0 ${px(2)}px ${palette.paper}`,
+                  }
+                : {
               background: l.color,
               // Light text on a yellow tag was unreadable; pick whichever of
               // the brand's two text colours actually contrasts with the tag.
@@ -690,7 +723,8 @@ export const AnnotationLayer: React.FC<Props> = ({
               letterSpacing: px(-0.4),
               whiteSpace: "nowrap",
               fontVariantNumeric: "tabular-nums",
-            }}
+            }
+            }
           >
             {l.text}
           </div>

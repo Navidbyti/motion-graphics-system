@@ -831,6 +831,9 @@ const Layer: React.FC<{
               */
               const taken = [
                 ...annotationPrices(annotations),
+                ...annotations.flatMap((a) =>
+                  a.kind === "zone" && a.tag === "range" ? [(a.from + a.to) / 2] : [],
+                ),
                 ...(layer.priceTag && shown.length ? [shown[shown.length - 1].close] : []),
               ].map((v) => priceToPct(v, scale));
               const TAG_PCT = 3.2;

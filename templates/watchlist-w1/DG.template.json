@@ -9,7 +9,7 @@
     "dg",
     "cutaway"
   ],
-  "seconds": 2,
+  "seconds": 4.2,
   "fields": [
     {
       "key": "header",
@@ -2619,7 +2619,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 162.41,
-          "to": 174.01
+          "to": 174.01,
+          "tag": "range"
         },
         {
           "id": "supply-2",
@@ -2627,7 +2628,8 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 135.91,
-          "to": 143.73
+          "to": 143.73,
+          "tag": "range"
         },
         {
           "id": "demand-1",
@@ -2635,23 +2637,17 @@
           "opacity": 0.55,
           "kind": "zone",
           "from": 117.4,
-          "to": 122.3
+          "to": 122.3,
+          "tag": "range"
         },
         {
           "id": "demand-2",
           "color": "#26a69a",
           "opacity": 0.55,
           "kind": "zone",
-          "from": 99.8,
-          "to": 103.5
-        },
-        {
-          "id": "demand-3",
-          "color": "#26a69a",
-          "opacity": 0.55,
-          "kind": "zone",
           "from": 96.7,
-          "to": 99.8
+          "to": 103.5,
+          "tag": "range"
         },
         {
           "id": "choch",
@@ -2660,8 +2656,8 @@
           "opacity": 1,
           "kind": "note",
           "at": {
-            "index": 304,
-            "price": 126.5
+            "index": 300,
+            "price": 110
           }
         },
         {
@@ -2671,7 +2667,8 @@
           "opacity": 1,
           "kind": "level",
           "price": 134,
-          "style": "solid"
+          "style": "solid",
+          "labelSide": "left"
         }
       ]
     }
@@ -2701,51 +2698,45 @@
       "annotations": "{{marks}}",
       "futureBars": 14,
       "decimals": 2,
-      "drawSeconds": 0.1,
-      "reveal": "wipe",
+      "drawSeconds": 1.5,
+      "reveal": "grow",
       "warmupBars": 100,
       "beats": [
         {
           "target": "supply-1",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.1,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "supply-2",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.28,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "demand-1",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.45999999999999996,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "demand-2",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
-        },
-        {
-          "target": "demand-3",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
-        },
-        {
-          "target": "choch",
-          "at": 0,
-          "duration": 0.1,
-          "effect": "fade"
+          "at": 0.64,
+          "duration": 0.45,
+          "effect": "wipe"
         },
         {
           "target": "price-to-beat",
-          "at": 0.3,
-          "duration": 0.4,
+          "at": 1.2,
+          "duration": 0.5,
           "effect": "draw"
+        },
+        {
+          "target": "choch",
+          "at": 1,
+          "duration": 0.3,
+          "effect": "pop"
         }
       ],
       "axis": true,
@@ -2756,16 +2747,16 @@
           "kind": "sma",
           "period": 50,
           "color": "#2962FF",
-          "at": 0,
-          "drawSeconds": 0.1,
+          "at": 0.15,
+          "drawSeconds": 1.5,
           "width": 2
         },
         {
           "kind": "sma",
           "period": 100,
           "color": "#FF9800",
-          "at": 0,
-          "drawSeconds": 0.1,
+          "at": 0.3,
+          "drawSeconds": 1.5,
           "width": 2
         }
       ],
